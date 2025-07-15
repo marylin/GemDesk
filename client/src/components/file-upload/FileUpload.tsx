@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { apiRequest } from '@/lib/queryClient';
+import { uploadFile, uploadFiles } from '@/lib/axios';
 import { Upload, File, X, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface FileUploadProps {
@@ -24,31 +24,27 @@ export default function FileUpload({ onUploadComplete, className }: FileUploadPr
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const queryClient = useQueryClient();
 
-  const uploadMutation = useMutation({
-    mutationFn: async ({ name, content }: { name: string; content: string }) => {
-      const response = await apiRequest('POST', '/api/files', {
-        name,
-        type: 'file',
-        content,
-        parentPath: ''
-      });
-      return await response.json();
+  const singleUploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const response = await uploadFile(file, '');
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/files'] });
     }
   });
 
-  const readFileContent = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string);
-      reader.onerror = reject;
-      reader.readAsText(file);
-    });
-  };
+  const multipleUploadMutation = useMutation({
+    mutationFn: async (files: File[]) => {
+      const response = await uploadFiles(files, '');
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/files'] });
+    }
+  });
 
-  const uploadFile = async (uploadFile: UploadFile) => {
+  const uploadSingleFile = async (uploadFile: UploadFile) => {
     try {
       setUploadFiles(prev => prev.map(f => 
         f.id === uploadFile.id 
@@ -56,8 +52,6 @@ export default function FileUpload({ onUploadComplete, className }: FileUploadPr
           : f
       ));
 
-      const content = await readFileContent(uploadFile.file);
-      
       // Simulate progress updates
       const progressInterval = setInterval(() => {
         setUploadFiles(prev => prev.map(f => 
@@ -67,10 +61,7 @@ export default function FileUpload({ onUploadComplete, className }: FileUploadPr
         ));
       }, 200);
 
-      await uploadMutation.mutateAsync({
-        name: uploadFile.file.name,
-        content
-      });
+      await singleUploadMutation.mutateAsync(uploadFile.file);
 
       clearInterval(progressInterval);
       
@@ -80,6 +71,9 @@ export default function FileUpload({ onUploadComplete, className }: FileUploadPr
           : f
       ));
 
+      if (onUploadComplete) {
+        onUploadComplete([uploadFile.file]);
+      }
     } catch (error) {
       setUploadFiles(prev => prev.map(f => 
         f.id === uploadFile.id 
@@ -101,7 +95,7 @@ export default function FileUpload({ onUploadComplete, className }: FileUploadPr
 
     // Start uploading each file
     newUploadFiles.forEach(uploadFile => {
-      uploadFile(uploadFile);
+      uploadSingleFile(uploadFile);
     });
   }, []);
 
@@ -148,34 +142,26 @@ export default function FileUpload({ onUploadComplete, className }: FileUploadPr
               <p className="text-blue-400">Drop the files here...</p>
             ) : (
               <div>
-                <p className="text-gray-300 mb-2">
-                  Drag & drop files here, or <span className="text-blue-400">click to select</span>
+                <p className="text-gray-300 mb-2">Drag & drop files here, or click to select</p>
+                <p className="text-gray-500 text-sm">
+                  Supports: TXT, JS, TS, JSON, HTML, CSS, MD, PY, Java, C++, etc.
                 </p>
-                <p className="text-sm text-gray-500">
-                  Supports text files, JSON, JavaScript, TypeScript, XML, YAML
-                </p>
-                <p className="text-xs text-gray-600 mt-1">
-                  Maximum file size: 10MB
-                </p>
+                <p className="text-gray-500 text-sm">Max file size: 10MB</p>
               </div>
             )}
           </div>
 
           {uploadFiles.length > 0 && (
             <div className="mt-6 space-y-3">
-              <h3 className="text-white font-medium">Uploading Files</h3>
+              <h3 className="text-white font-medium">Uploaded Files</h3>
               {uploadFiles.map((uploadFile) => (
-                <div key={uploadFile.id} className="bg-gray-700 rounded-lg p-4">
+                <div key={uploadFile.id} className="bg-gray-700 p-4 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center space-x-3">
-                      <File className="w-5 h-5 text-gray-400" />
+                      <File className="w-5 h-5 text-blue-400" />
                       <div>
-                        <p className="text-white text-sm font-medium">
-                          {uploadFile.file.name}
-                        </p>
-                        <p className="text-gray-400 text-xs">
-                          {formatFileSize(uploadFile.file.size)}
-                        </p>
+                        <p className="text-white font-medium">{uploadFile.file.name}</p>
+                        <p className="text-gray-400 text-sm">{formatFileSize(uploadFile.file.size)}</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -197,13 +183,18 @@ export default function FileUpload({ onUploadComplete, className }: FileUploadPr
                   </div>
                   
                   {uploadFile.status === 'uploading' && (
-                    <Progress value={uploadFile.progress} className="w-full" />
+                    <div className="mb-2">
+                      <Progress value={uploadFile.progress} className="h-2" />
+                      <p className="text-gray-400 text-sm mt-1">Uploading... {uploadFile.progress}%</p>
+                    </div>
                   )}
                   
-                  {uploadFile.status === 'error' && (
-                    <p className="text-red-400 text-sm mt-2">
-                      {uploadFile.error}
-                    </p>
+                  {uploadFile.status === 'error' && uploadFile.error && (
+                    <p className="text-red-400 text-sm">{uploadFile.error}</p>
+                  )}
+                  
+                  {uploadFile.status === 'success' && (
+                    <p className="text-green-400 text-sm">Upload successful!</p>
                   )}
                 </div>
               ))}

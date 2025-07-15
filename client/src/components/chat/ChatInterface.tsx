@@ -7,7 +7,7 @@ import { Send, Paperclip, Sparkles } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import TypingIndicator from './TypingIndicator';
 import { useQuery } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { api } from '@/lib/axios';
 import type { ChatMessage } from '@shared/schema';
 
 interface ChatInterfaceProps {
@@ -23,8 +23,8 @@ export default function ChatInterface({ onSendMessage, selectedFile }: ChatInter
   const { data: messages = [], isLoading, refetch } = useQuery({
     queryKey: ['/api/chat/messages'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/chat/messages');
-      return await response.json();
+      const response = await api.get<ChatMessage[]>('/chat/messages');
+      return response.data;
     },
     refetchInterval: 5000 // Refresh every 5 seconds
   });

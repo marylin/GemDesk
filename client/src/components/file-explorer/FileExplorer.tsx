@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { api } from '@/lib/axios';
 import { Plus, Folder, Search, Upload, Filter } from 'lucide-react';
 import FileTree from './FileTree';
 import FileUpload from '@/components/file-upload/FileUpload';
@@ -27,15 +27,15 @@ export default function FileExplorer({ onFileSelect }: FileExplorerProps) {
   const { data: files = [], isLoading } = useQuery({
     queryKey: ['/api/files'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/files');
-      return await response.json();
+      const response = await api.get<File[]>('/files');
+      return response.data;
     }
   });
 
   const createFileMutation = useMutation({
     mutationFn: async (fileData: { name: string; type: 'file' | 'folder'; content?: string }) => {
-      const response = await apiRequest('POST', '/api/files', fileData);
-      return await response.json();
+      const response = await api.post<File>('/files', fileData);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/files'] });

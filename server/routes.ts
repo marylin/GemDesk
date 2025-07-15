@@ -2,12 +2,19 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import cors from "cors";
+import dotenv from "dotenv";
+import multer from "multer";
+import fs from "fs-extra";
+import path from "path";
 import { storage } from "./storage";
 import { authService } from "./services/auth";
 import { fileService } from "./services/files";
 import { geminiService } from "./services/gemini";
 import { insertChatMessageSchema, insertFileSchema, type User } from "@shared/schema";
 import { z } from "zod";
+
+// Load environment variables
+dotenv.config();
 
 interface AuthenticatedRequest extends Request {
   user?: User;
@@ -34,6 +41,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       origin: process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : "*",
       methods: ["GET", "POST"],
       credentials: true
+    }
+  });
+
+  // Multer configuration for file uploads
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024 // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      // Allow common text file types
+      const allowedMimes = [
+        'text/plain',
+        'text/javascript',
+        'text/typescript',
+        'application/javascript',
+        'application/json',
+        'text/html',
+        'text/css',
+        'text/markdown'
+      ];
+      
+      if (allowedMimes.includes(file.mimetype) || file.originalname.match(/\.(txt|js|ts|jsx|tsx|json|html|css|md|py|java|cpp|c|h|hpp|sql|xml|yaml|yml)$/)) {
+        cb(null, true);
+      } else {
+        cb(new Error('File type not supported'), false);
+      }
     }
   });
 
@@ -220,6 +254,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: 'File deleted successfully' });
     } catch (error) {
       res.status(500).json({ message: 'Failed to delete file' });
+    }
+  });
+
+  // File upload endpoint using multer
+  app.post('/api/files/upload', upload.single('file'), async (req: AuthenticatedRequest, res) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const { parentPath = "" } = req.body;
+      const content = req.file.buffer.toString('utf-8');
+      
+      // Use fs-extra to potentially write to temp directory if needed
+      const tempPath = path.join(process.cwd(), 'tmp', req.file.originalname);
+      await fs.ensureDir(path.dirname(tempPath));
+      
+      const file = await fileService.createFile(
+        req.user.id,
+        req.file.originalname,
+        parentPath,
+        'file',
+        content
+      );
+
+      res.status(201).json(file);
+    } catch (error) {
+      console.error('File upload error:', error);
+      res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to upload file' });
+    }
+  });
+
+  // Multiple file upload endpoint
+  app.post('/api/files/upload-multiple', upload.array('files', 10), async (req: AuthenticatedRequest, res) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+
+    try {
+      const files = req.files as Express.Multer.File[];
+      
+      if (!files || files.length === 0) {
+        return res.status(400).json({ message: 'No files uploaded' });
+      }
+
+      const { parentPath = "" } = req.body;
+      const uploadedFiles = [];
+
+      for (const file of files) {
+        const content = file.buffer.toString('utf-8');
+        
+        // Use fs-extra to ensure temp directory exists
+        const tempDir = path.join(process.cwd(), 'tmp');
+        await fs.ensureDir(tempDir);
+        
+        const uploadedFile = await fileService.createFile(
+          req.user.id,
+          file.originalname,
+          parentPath,
+          'file',
+          content
+        );
+        uploadedFiles.push(uploadedFile);
+      }
+
+      res.status(201).json({ files: uploadedFiles });
+    } catch (error) {
+      console.error('Multiple file upload error:', error);
+      res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to upload files' });
     }
   });
 
