@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Send, Paperclip, Sparkles } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import TypingIndicator from './TypingIndicator';
+import ConnectionStatusIndicator from '@/components/ui/ConnectionStatus';
 import { useQuery } from '@tanstack/react-query';
 import { useSocket } from '@/hooks/useSocket';
 import { api } from '@/lib/axios';
@@ -31,7 +32,8 @@ export default function ChatInterface({ selectedFile }: ChatInterfaceProps) {
     gcTime: 10 * 60 * 1000 // Keep in cache for 10 minutes
   });
 
-  const onMessage = useCallback((socketMessage) => {
+  // Define callback functions with consistent order
+  const onMessage = useCallback((socketMessage: any) => {
     console.log('Chat interface received message:', socketMessage);
     if (socketMessage.type === 'ai_response') {
       setIsTyping(false);
@@ -51,13 +53,20 @@ export default function ChatInterface({ selectedFile }: ChatInterfaceProps) {
     console.log('Chat interface Socket disconnected');
   }, []);
 
+  const onError = useCallback((error: string) => {
+    console.error('Socket error in chat:', error);
+    setIsTyping(false);
+  }, []);
+
+  // Use stable socket options to prevent re-renders
   const socketOptions = useMemo(() => ({
     onMessage,
     onConnect,
-    onDisconnect
-  }), [onMessage, onConnect, onDisconnect]);
+    onDisconnect,
+    onError
+  }), [onMessage, onConnect, onDisconnect, onError]);
 
-  const { isConnected, sendMessage: sendSocketMessage } = useSocket(socketOptions);
+  const { isConnected, connectionStatus, sendMessage: sendSocketMessage, forceReconnect } = useSocket(socketOptions);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -111,10 +120,16 @@ export default function ChatInterface({ selectedFile }: ChatInterfaceProps) {
     <div className="flex flex-col h-full bg-gray-800 border-l border-gray-700">
       <Card className="flex-1 bg-gray-800 border-gray-700 rounded-none">
         <CardHeader className="pb-3">
-          <CardTitle className="text-white flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-blue-400" />
-            Gemini AI Chat
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-white flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-blue-400" />
+              Gemini AI Chat
+            </CardTitle>
+            <ConnectionStatusIndicator 
+              status={connectionStatus} 
+              onReconnect={forceReconnect}
+            />
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col h-full p-0">
           <ScrollArea className="flex-1 p-4">

@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Auth from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import TestPage from "@/pages/test";
+import SocketTest from "@/pages/socketTest";
 import { useAuth } from "./hooks/useAuth";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useEffect } from "react";
@@ -47,6 +48,7 @@ function Router() {
       <Route path="/auth" component={Auth} />
       <Route path="/dashboard" component={user ? Dashboard : Auth} />
       <Route path="/test" component={user ? TestPage : Auth} />
+      <Route path="/socket-test" component={user ? SocketTest : Auth} />
       <Route component={NotFound} />
     </Switch>
   );
