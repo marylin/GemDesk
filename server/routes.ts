@@ -533,13 +533,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
-        // Save user message
-        await storage.createChatMessage({
-          content,
-          sender: 'user',
-          userId: socket.data.userId,
-          metadata
-        });
+        // Don't save user message here - it's already saved via the API call
+        // This avoids duplicate messages in the database
+        console.log('Sending to Gemini CLI:', content);
 
         // Get AI response from Gemini CLI
         try {
