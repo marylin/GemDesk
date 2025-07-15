@@ -232,9 +232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Message is required' });
       }
 
-      const response = await geminiService.sendMessage(message, context);
-
-      // Save both user message and AI response
+      // Save user message first
       await storage.createChatMessage({
         content: message,
         sender: 'user',
@@ -242,6 +240,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metadata: context
       });
 
+      // Get AI response
+      const response = await geminiService.sendMessage(message, context);
+
+      // Save AI response
       await storage.createChatMessage({
         content: response.message,
         sender: 'ai',

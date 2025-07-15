@@ -81,13 +81,31 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         );
       } else {
-        // Regular text
+        // Regular text - format it properly
+        const textParts = part.split('\n');
         return (
-          <div key={index} className="whitespace-pre-wrap">
-            {part}
+          <div key={index} className="space-y-2">
+            {textParts.map((line, lineIndex) => (
+              <div key={lineIndex} className="leading-relaxed">
+                {line.trim() === '' ? <br /> : formatTextLine(line)}
+              </div>
+            ))}
           </div>
         );
       }
+    });
+  };
+
+  const formatTextLine = (line: string) => {
+    // Format bold text **text**
+    const boldRegex = /\*\*(.*?)\*\*/g;
+    const parts = line.split(boldRegex);
+    
+    return parts.map((part, index) => {
+      if (index % 2 === 1) {
+        return <strong key={index} className="font-semibold">{part}</strong>;
+      }
+      return part;
     });
   };
 
@@ -108,7 +126,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           </div>
           <div className={`rounded-lg p-3 ${
             isAI 
-              ? 'bg-dark-panel text-white' 
+              ? 'bg-gray-800 text-white' 
               : 'bg-blue-600 text-white ml-auto'
           }`}>
             {formatMessage(message.content)}

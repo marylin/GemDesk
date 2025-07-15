@@ -11,8 +11,9 @@ export class WebSocketManager {
   private listeners: Map<string, ((message: WebSocketMessage) => void)[]> = new Map();
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 3;
   private isConnecting = false;
+  private shouldReconnect = true;
 
   constructor() {
     this.token = localStorage.getItem('auth_token');
@@ -57,7 +58,7 @@ export class WebSocketManager {
         this.socket = null;
         this.emit('disconnected', { type: 'error', error: 'Connection closed' });
         
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
           this.scheduleReconnect();
         }
       };
@@ -71,6 +72,8 @@ export class WebSocketManager {
   }
 
   disconnect(): void {
+    this.shouldReconnect = false;
+    
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;

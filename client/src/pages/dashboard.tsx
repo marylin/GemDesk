@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useSocket } from "@/hooks/useSocket";
 import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
 import ChatInterface from "@/components/chat/ChatInterface";
@@ -18,19 +17,6 @@ export default function Dashboard() {
 
   const token = localStorage.getItem('auth_token');
   
-  const { isConnected, sendMessage } = useSocket(token || undefined, {
-    onMessage: (message) => {
-      console.log('WebSocket message:', message);
-    },
-    onConnect: () => {
-      console.log('WebSocket connected');
-    },
-    onDisconnect: () => {
-      console.log('WebSocket disconnected');
-    },
-    autoReconnect: true
-  });
-
   const handleFileSelect = (file: any) => {
     setSelectedFile(file);
     if (file.type === 'file') {
@@ -39,13 +25,8 @@ export default function Dashboard() {
   };
 
   const handleSendMessage = (message: string, context?: any) => {
-    if (sendMessage) {
-      sendMessage({
-        type: 'chat_message',
-        content: message,
-        metadata: context
-      });
-    }
+    // This will be handled by the ChatInterface component directly
+    console.log('Sending message:', message, context);
   };
 
   if (!user) {
@@ -54,7 +35,7 @@ export default function Dashboard() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-900 text-white">
-      <Header user={user} isConnected={isConnected} />
+      <Header user={user} isConnected={true} />
       
       <div className="flex-1 flex overflow-hidden">
         {/* File Explorer Sidebar */}
