@@ -8,8 +8,8 @@ interface SidebarProps {
 export default function Sidebar({ children, width = 256 }: SidebarProps) {
   return (
     <div 
-      style={{ width }} 
-      className="bg-dark-panel border-r border-dark-border flex flex-col"
+      className="h-full bg-gray-800 border-r border-gray-700 flex flex-col"
+      style={{ width: `${width}px` }}
     >
       {children}
     </div>

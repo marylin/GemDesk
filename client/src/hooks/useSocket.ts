@@ -23,12 +23,17 @@ export function useSocket(token?: string, options: UseSocketOptions = {}) {
   const maxReconnectAttempts = 5;
 
   const connect = useCallback(() => {
-    if (!token || socketRef.current?.readyState === WebSocket.OPEN) return;
+    if (!token || socketRef.current?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket connect skipped:', { hasToken: !!token, readyState: socketRef.current?.readyState });
+      return;
+    }
 
     setIsConnecting(true);
     
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws?token=${token}`;
+    
+    console.log('Connecting to WebSocket:', wsUrl);
     
     const socket = new WebSocket(wsUrl);
     socketRef.current = socket;
@@ -96,7 +101,11 @@ export function useSocket(token?: string, options: UseSocketOptions = {}) {
 
   useEffect(() => {
     if (token) {
+      console.log('useSocket: Token available, connecting...', token);
       connect();
+    } else {
+      console.log('useSocket: No token, disconnecting...');
+      disconnect();
     }
 
     return () => {

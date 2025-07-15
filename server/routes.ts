@@ -51,10 +51,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const user = await authService.validateSession(token);
         if (user) {
           req.user = user;
+        } else {
+          console.log('Token validation failed for token:', token.substring(0, 10) + '...');
         }
       } catch (error) {
         console.error('Session validation error:', error);
       }
+    } else {
+      console.log('No token provided in request');
     }
     next();
   };
@@ -71,6 +75,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const result = await authService.authenticateWithGoogle(googleId, email, username, avatar);
+      
+      console.log('Authentication successful for user:', username, 'with token:', result.token.substring(0, 10) + '...');
       
       res.cookie('session_token', result.token, {
         httpOnly: true,
@@ -332,7 +338,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // WebSocket handling
-  wss.on('connection', (ws: AuthenticatedWebSocket, req) => {
+  wss.on('connection', async (ws: AuthenticatedWebSocket, req) => {
     console.log('WebSocket client connected');
 
     // Handle authentication via query params or headers
@@ -340,13 +346,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const token = url.searchParams.get('token');
 
     if (token) {
-      authService.validateSession(token).then(user => {
+      try {
+        const user = await authService.validateSession(token);
         if (user) {
           ws.userId = user.id;
           ws.username = user.username;
-          console.log(`WebSocket authenticated for user: ${user.username}`);
+          console.log(`WebSocket authenticated for user: ${user.username} (ID: ${user.id})`);
+          
+          // Send welcome message
+          ws.send(JSON.stringify({ type: 'connected', message: 'WebSocket connection established' }));
+        } else {
+          console.log('WebSocket authentication failed: Invalid token');
+          ws.send(JSON.stringify({ type: 'error', error: 'Authentication failed' }));
+          ws.close(1008, 'Authentication failed');
+          return;
         }
-      });
+      } catch (error) {
+        console.error('WebSocket authentication error:', error);
+        ws.send(JSON.stringify({ type: 'error', error: 'Authentication failed' }));
+        ws.close(1008, 'Authentication failed');
+        return;
+      }
+    } else {
+      console.log('WebSocket connection without token');
+      ws.send(JSON.stringify({ type: 'error', error: 'No authentication token provided' }));
+      ws.close(1008, 'No authentication token provided');
+      return;
     }
 
     ws.on('message', async (data) => {
@@ -354,9 +379,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const message = JSON.parse(data.toString());
         
         if (!ws.userId) {
-          ws.send(JSON.stringify({ error: 'Not authenticated' }));
+          console.log('WebSocket message received but user not authenticated');
+          ws.send(JSON.stringify({ type: 'error', error: 'Not authenticated' }));
           return;
         }
+        
+        console.log(`WebSocket message from user ${ws.username}: ${message.type}`);
 
         switch (message.type) {
           case 'chat_message':
@@ -411,9 +439,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ws.on('error', (error) => {
       console.error('WebSocket error:', error);
     });
-
-    // Send welcome message
-    ws.send(JSON.stringify({ type: 'connected', message: 'WebSocket connection established' }));
   });
 
   return httpServer;

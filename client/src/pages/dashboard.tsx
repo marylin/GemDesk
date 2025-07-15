@@ -10,14 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Code2 } from "lucide-react";
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [showCodeEditor, setShowCodeEditor] = useState(false);
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [sidebarWidth, setSidebarWidth] = useState(256); // 16rem in pixels
   const [editorWidth, setEditorWidth] = useState(384); // 24rem in pixels
 
-  const token = localStorage.getItem('auth_token');
-  
   const { isConnected, sendMessage } = useSocket(token || undefined, {
     onMessage: (message) => {
       console.log('WebSocket message:', message);

@@ -55,7 +55,7 @@ export default function CodeEditor({ file, onClose }: CodeEditorProps) {
       setTabs(prev => [...prev, newTab]);
       setActiveTab(file.id.toString());
     }
-  }, [file]);
+  }, [file, tabs]);
 
   const handleContentChange = (content: string) => {
     setTabs(prev => prev.map(tab => 
@@ -79,32 +79,20 @@ export default function CodeEditor({ file, onClose }: CodeEditorProps) {
     }
   };
 
-  const handleCloseTab = (tabId: number) => {
-    const tab = tabs.find(t => t.id === tabId);
-    if (tab?.isDirty) {
-      if (!confirm(`"${tab.name}" has unsaved changes. Close anyway?`)) {
-        return;
+  const closeTab = (tabId: string) => {
+    setTabs(prev => prev.filter(tab => tab.id.toString() !== tabId));
+    if (activeTab === tabId) {
+      const remainingTabs = tabs.filter(tab => tab.id.toString() !== tabId);
+      if (remainingTabs.length > 0) {
+        setActiveTab(remainingTabs[0].id.toString());
+      } else {
+        onClose();
       }
     }
-
-    setTabs(prev => {
-      const newTabs = prev.filter(t => t.id !== tabId);
-      if (newTabs.length === 0) {
-        onClose();
-        return [];
-      }
-      
-      if (activeTab === tabId.toString()) {
-        setActiveTab(newTabs[0].id.toString());
-      }
-      
-      return newTabs;
-    });
   };
 
   const getFileIcon = (fileName: string) => {
     const extension = fileName.split('.').pop()?.toLowerCase();
-    
     switch (extension) {
       case 'js':
       case 'jsx':
@@ -114,150 +102,90 @@ export default function CodeEditor({ file, onClose }: CodeEditorProps) {
       case 'java':
       case 'cpp':
       case 'c':
-      case 'html':
-      case 'css':
-      case 'json':
-        return <FileCode className="w-4 h-4 text-green-400" />;
+        return <FileCode className="w-4 h-4 text-blue-400" />;
       default:
         return <FileText className="w-4 h-4 text-gray-400" />;
     }
   };
 
-  const getLanguage = (fileName: string) => {
-    const extension = fileName.split('.').pop()?.toLowerCase();
-    
-    switch (extension) {
-      case 'js':
-      case 'jsx':
-        return 'JavaScript';
-      case 'ts':
-      case 'tsx':
-        return 'TypeScript';
-      case 'py':
-        return 'Python';
-      case 'java':
-        return 'Java';
-      case 'cpp':
-      case 'c':
-        return 'C++';
-      case 'html':
-        return 'HTML';
-      case 'css':
-        return 'CSS';
-      case 'json':
-        return 'JSON';
-      default:
-        return 'Text';
-    }
-  };
-
-  const activeTabData = tabs.find(tab => tab.id.toString() === activeTab);
-
   if (tabs.length === 0) {
     return (
-      <div className="h-full flex flex-col">
-        <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-300">CODE EDITOR</h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="p-1 hover:bg-gray-700 text-gray-400"
-            onClick={onClose}
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-        <div className="flex-1 flex items-center justify-center text-gray-400">
-          <div className="text-center">
-            <FileCode className="w-12 h-12 mx-auto mb-4 text-gray-500" />
-            <p>No files open</p>
-            <p className="text-sm">Select a file from the explorer to edit</p>
-          </div>
+      <div className="flex items-center justify-center h-full bg-gray-800 text-gray-400">
+        <div className="text-center">
+          <FileCode className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p>No files open</p>
+          <p className="text-sm">Select a file to start editing</p>
         </div>
       </div>
     );
   }
 
+  const activeTabData = tabs.find(tab => tab.id.toString() === activeTab);
+
   return (
-    <div className="h-full flex flex-col">
-      {/* Editor Header */}
-      <div className="p-4 border-b border-gray-700">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-300">CODE EDITOR</h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="p-1 hover:bg-gray-700 text-gray-400"
-            onClick={onClose}
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-        
-        {/* File Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full bg-gray-900 border-gray-700">
-            {tabs.map((tab) => (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id.toString()}
-                className="flex items-center space-x-2 px-3 py-1 data-[state=active]:bg-gray-700 text-sm"
-              >
-                {getFileIcon(tab.name)}
-                <span>{tab.name}</span>
-                {tab.isDirty && <div className="w-2 h-2 bg-blue-400 rounded-full" />}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="w-4 h-4 p-0 ml-1 hover:bg-gray-900 rounded-full opacity-60 hover:opacity-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCloseTab(tab.id);
-                  }}
+    <div className="h-full bg-gray-800 flex flex-col">
+      <div className="border-b border-gray-700">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <div className="flex items-center justify-between p-2">
+            <TabsList className="bg-gray-700">
+              {tabs.map(tab => (
+                <TabsTrigger 
+                  key={tab.id} 
+                  value={tab.id.toString()}
+                  className="relative flex items-center gap-2 data-[state=active]:bg-gray-600"
                 >
-                  <X className="w-3 h-3" />
-                </Button>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+                  {getFileIcon(tab.name)}
+                  <span className="text-sm">{tab.name}</span>
+                  {tab.isDirty && <div className="w-2 h-2 bg-orange-400 rounded-full" />}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeTab(tab.id.toString());
+                    }}
+                    className="p-0 h-auto hover:bg-gray-500 ml-1"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleSave}
+                disabled={!activeTabData?.isDirty || updateFileMutation.isPending}
+                size="sm"
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Save className="w-4 h-4 mr-1" />
+                {updateFileMutation.isPending ? 'Saving...' : 'Save'}
+              </Button>
+              <Button
+                onClick={onClose}
+                variant="ghost"
+                size="sm"
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+          
+          {tabs.map(tab => (
+            <TabsContent key={tab.id} value={tab.id.toString()} className="m-0">
+              <div className="h-full">
+                <textarea
+                  value={tab.content}
+                  onChange={(e) => handleContentChange(e.target.value)}
+                  className="w-full h-96 p-4 bg-gray-900 text-white font-mono text-sm border-0 resize-none focus:outline-none"
+                  placeholder="Start typing your code here..."
+                />
+              </div>
+            </TabsContent>
+          ))}
         </Tabs>
-      </div>
-      
-      {/* Editor Content */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full bg-gray-900 p-4 overflow-y-auto scrollbar-thin">
-          <textarea
-            value={activeTabData?.content || ""}
-            onChange={(e) => handleContentChange(e.target.value)}
-            className="w-full h-full bg-transparent text-gray-300 font-mono text-sm resize-none outline-none border-0"
-            placeholder="Start typing..."
-            spellCheck={false}
-          />
-        </div>
-      </div>
-      
-      {/* Editor Footer */}
-      <div className="p-3 border-t border-gray-700">
-        <div className="flex items-center justify-between text-xs text-gray-400">
-          <div className="flex items-center space-x-4">
-            <span>{activeTabData ? getLanguage(activeTabData.name) : ''}</span>
-            <span>UTF-8</span>
-            <span>LF</span>
-          </div>
-          <div className="flex items-center space-x-4">
-            <span>Ln 1, Col 1</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="p-1 hover:bg-gray-700 hover:text-white transition-colors"
-              onClick={handleSave}
-              disabled={!activeTabData?.isDirty || updateFileMutation.isPending}
-              title="Save file"
-            >
-              <Save className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
       </div>
     </div>
   );
