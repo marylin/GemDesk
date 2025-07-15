@@ -1,0 +1,133 @@
+# Gemini CLI Desktop Application
+
+## Overview
+
+This is a full-stack web application that provides a desktop-like interface for interacting with Google's Gemini AI. The application features real-time chat capabilities, file management, and code editing in a dark-themed UI that resembles a modern desktop environment.
+
+## User Preferences
+
+Preferred communication style: Simple, everyday language.
+
+## System Architecture
+
+### Frontend Architecture
+- **Framework**: React with TypeScript
+- **Styling**: Tailwind CSS with custom dark theme variables
+- **UI Components**: Radix UI components via shadcn/ui
+- **State Management**: React Query (TanStack Query) for server state
+- **Routing**: Wouter for client-side routing
+- **Build Tool**: Vite for development and building
+
+### Backend Architecture
+- **Runtime**: Node.js with Express.js
+- **Language**: TypeScript with ES modules
+- **WebSocket**: Native WebSocket server for real-time communication
+- **Database**: PostgreSQL with Drizzle ORM
+- **AI Integration**: Google Gemini AI via @google/genai package
+- **Authentication**: Session-based with Google OAuth integration
+
+### Project Structure
+```
+├── client/           # React frontend
+├── server/           # Express backend
+├── shared/           # Shared TypeScript types and schemas
+├── migrations/       # Database migration files
+└── attached_assets/  # Project requirements and documentation
+```
+
+## Key Components
+
+### Authentication System
+- **Google OAuth Integration**: Users authenticate using Google accounts
+- **Session Management**: Server-side session storage with tokens
+- **User Management**: User profiles with avatars and basic information
+
+### Real-time Communication
+- **WebSocket Server**: Custom WebSocket implementation on `/ws` endpoint
+- **Message Types**: Chat messages, AI responses, typing indicators, connection status
+- **Connection Management**: Automatic reconnection with exponential backoff
+
+### File Management System
+- **File Explorer**: Hierarchical file and folder structure
+- **File Operations**: Create, read, update, delete files and folders
+- **File Types**: Support for various file extensions with appropriate icons
+- **Path-based Organization**: Files organized by user and path structure
+
+### AI Integration
+- **Gemini AI Service**: Wrapper around Google's Gemini AI API
+- **Conversation Context**: Maintains conversation history for context awareness
+- **File Context Sharing**: Ability to share file contents with AI for analysis
+
+### Code Editor
+- **Multi-tab Interface**: Support for multiple open files
+- **Syntax Highlighting**: Basic syntax highlighting for different file types
+- **Auto-save**: Automatic saving of file changes
+- **Dirty State Tracking**: Visual indicators for unsaved changes
+
+## Data Flow
+
+1. **User Authentication**: 
+   - User initiates Google OAuth flow
+   - Server validates and creates/updates user record
+   - Session token issued and stored
+
+2. **File Operations**:
+   - Client requests file operations via REST API
+   - Server validates user permissions
+   - Database operations performed through Drizzle ORM
+   - Real-time updates sent via WebSocket
+
+3. **AI Chat**:
+   - User sends message through WebSocket
+   - Server forwards to Gemini AI service
+   - AI response streamed back to client
+   - Chat history persisted in database
+
+4. **Real-time Updates**:
+   - WebSocket connection established on login
+   - Bidirectional communication for chat and file updates
+   - Connection status monitored and displayed
+
+## External Dependencies
+
+### Frontend Dependencies
+- **UI Framework**: React, Radix UI components
+- **Styling**: Tailwind CSS with PostCSS
+- **State Management**: TanStack React Query
+- **WebSocket**: Native WebSocket API
+- **Development**: Vite, TypeScript
+
+### Backend Dependencies
+- **Core**: Express.js, WebSocket (ws)
+- **Database**: Drizzle ORM, @neondatabase/serverless
+- **AI**: @google/genai for Gemini AI integration
+- **Authentication**: Session management with connect-pg-simple
+- **Utilities**: cors, date-fns, nanoid
+
+### Database Schema
+- **users**: User profiles with Google OAuth data
+- **files**: File and folder hierarchy with content
+- **chatMessages**: Chat history with metadata
+- **sessions**: User session management
+
+## Deployment Strategy
+
+### Development Setup
+- **Frontend**: Vite dev server with HMR
+- **Backend**: tsx for TypeScript execution with auto-reload
+- **Database**: PostgreSQL with Drizzle migrations
+- **Environment**: Replit-optimized with cartographer plugin
+
+### Production Build
+- **Frontend**: Vite build to static assets
+- **Backend**: esbuild bundle for Node.js execution
+- **Database**: Production PostgreSQL via Neon
+- **Deployment**: Single server deployment with static file serving
+
+### Environment Configuration
+- **DATABASE_URL**: PostgreSQL connection string
+- **GEMINI_API_KEY**: Google AI API key for Gemini integration
+- **NODE_ENV**: Environment setting (development/production)
+- **SESSION_SECRET**: Secret for session encryption
+
+The application uses a monorepo structure with shared TypeScript types and follows modern web development practices with proper error handling, real-time communication, and responsive design.
