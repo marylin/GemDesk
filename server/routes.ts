@@ -17,6 +17,13 @@ interface AuthenticatedWebSocket extends WebSocket {
   username?: string;
 }
 
+interface WebSocketMessage {
+  type: 'chat_message' | 'ai_response' | 'typing' | 'ping' | 'pong' | 'connected' | 'error';
+  content?: string;
+  metadata?: any;
+  error?: string;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 

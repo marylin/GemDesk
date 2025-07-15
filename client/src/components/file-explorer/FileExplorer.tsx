@@ -1,198 +1,147 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiRequest } from "@/lib/queryClient";
-import FileTree from "./FileTree";
-import { FilePlus, FolderPlus, Upload, RefreshCw } from "lucide-react";
-import type { File } from "@shared/schema";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import { Plus, Folder, Search } from 'lucide-react';
+import FileTree from './FileTree';
+import type { File } from '@shared/schema';
 
 interface FileExplorerProps {
   onFileSelect: (file: File) => void;
 }
 
 export default function FileExplorer({ onFileSelect }: FileExplorerProps) {
+  const [searchTerm, setSearchTerm] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [newFileName, setNewFileName] = useState("");
-  const [newFileType, setNewFileType] = useState<"file" | "folder">("file");
-  const [selectedParentId, setSelectedParentId] = useState<number | undefined>();
-  
+  const [newFileName, setNewFileName] = useState('');
+  const [newFileType, setNewFileType] = useState<'file' | 'folder'>('file');
   const queryClient = useQueryClient();
 
-  const { data: files = [], isLoading, refetch } = useQuery<File[]>({
+  const { data: files = [], isLoading } = useQuery({
     queryKey: ['/api/files'],
     queryFn: async () => {
-      const response = await fetch('/api/files', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch files');
-      return response.json();
+      const response = await apiRequest('GET', '/api/files');
+      return await response.json();
     }
   });
 
   const createFileMutation = useMutation({
-    mutationFn: async (data: { name: string; type: "file" | "folder"; content?: string; parentPath?: string }) => {
-      const response = await apiRequest('POST', '/api/files', data);
-      return response.json();
+    mutationFn: async (fileData: { name: string; type: 'file' | 'folder'; content?: string }) => {
+      const response = await apiRequest('POST', '/api/files', fileData);
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/files'] });
       setShowCreateDialog(false);
-      setNewFileName("");
+      setNewFileName('');
     }
   });
 
-  const handleCreateFile = async () => {
+  const handleCreateFile = () => {
     if (!newFileName.trim()) return;
-
-    try {
-      await createFileMutation.mutateAsync({
-        name: newFileName,
-        type: newFileType,
-        content: newFileType === "file" ? "" : undefined,
-        parentPath: ""
-      });
-    } catch (error) {
-      console.error('Failed to create file:', error);
-    }
+    
+    createFileMutation.mutate({
+      name: newFileName,
+      type: newFileType,
+      content: newFileType === 'file' ? '' : undefined
+    });
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const content = e.target?.result as string;
-      try {
-        await createFileMutation.mutateAsync({
-          name: file.name,
-          type: "file",
-          content,
-          parentPath: ""
-        });
-      } catch (error) {
-        console.error('Failed to upload file:', error);
-      }
-    };
-    reader.readAsText(file);
-  };
+  const filteredFiles = files.filter((file: File) => 
+    file.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-4 border-b border-gray-700">
-        <h2 className="text-sm font-semibold text-gray-300 mb-3">PROJECT EXPLORER</h2>
-        <div className="flex space-x-2">
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white"
-                title="New File"
-              >
-                <FilePlus className="w-4 h-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-gray-800 border-gray-700 text-white">
-              <DialogHeader>
-                <DialogTitle>Create New {newFileType}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="fileType">Type</Label>
-                  <Select value={newFileType} onValueChange={(value: "file" | "folder") => setNewFileType(value)}>
-                    <SelectTrigger className="bg-gray-900 border-gray-700">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-800 border-gray-700">
-                      <SelectItem value="file">File</SelectItem>
-                      <SelectItem value="folder">Folder</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="fileName">Name</Label>
-                  <Input
-                    id="fileName"
-                    value={newFileName}
-                    onChange={(e) => setNewFileName(e.target.value)}
-                    placeholder={`Enter ${newFileType} name`}
-                    className="bg-gray-900 border-gray-700 text-white"
-                    onKeyDown={(e) => e.key === 'Enter' && handleCreateFile()}
-                  />
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handleCreateFile}
-                    disabled={!newFileName.trim() || createFileMutation.isPending}
-                  >
-                    Create
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-
+    <Card className="h-full bg-gray-800 border-gray-700 rounded-none">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-white flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <Folder className="w-5 h-5 text-blue-400" />
+            Files
+          </span>
           <Button
-            variant="ghost"
-            size="icon"
-            className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white"
-            title="New Folder"
-            onClick={() => {
-              setNewFileType("folder");
-              setShowCreateDialog(true);
-            }}
+            onClick={() => setShowCreateDialog(true)}
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700"
           >
-            <FolderPlus className="w-4 h-4" />
+            <Plus className="w-4 h-4" />
           </Button>
-
-          <label className="cursor-pointer">
-            <input
-              type="file"
-              className="hidden"
-              onChange={handleFileUpload}
-              accept=".js,.jsx,.ts,.tsx,.json,.md,.txt,.css,.html,.py,.java,.cpp,.c"
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col h-full p-0">
+        <div className="p-4 border-b border-gray-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              placeholder="Search files..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white"
-              title="Upload File"
-              asChild
-            >
-              <div>
-                <Upload className="w-4 h-4" />
-              </div>
-            </Button>
-          </label>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white"
-            title="Refresh"
-            onClick={() => refetch()}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </Button>
+          </div>
         </div>
-      </div>
-      
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-2">
-        {isLoading ? (
-          <div className="text-gray-400 text-sm p-2">Loading files...</div>
-        ) : files.length === 0 ? (
-          <div className="text-gray-400 text-sm p-2">No files yet. Create your first file or folder!</div>
-        ) : (
-          <FileTree files={files} onFileSelect={onFileSelect} />
+
+        {showCreateDialog && (
+          <div className="p-4 border-b border-gray-700 bg-gray-750">
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Button
+                  variant={newFileType === 'file' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setNewFileType('file')}
+                  className="flex-1"
+                >
+                  File
+                </Button>
+                <Button
+                  variant={newFileType === 'folder' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setNewFileType('folder')}
+                  className="flex-1"
+                >
+                  Folder
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder={`${newFileType === 'file' ? 'File' : 'Folder'} name...`}
+                  value={newFileName}
+                  onChange={(e) => setNewFileName(e.target.value)}
+                  className="flex-1 bg-gray-700 border-gray-600 text-white"
+                  onKeyPress={(e) => e.key === 'Enter' && handleCreateFile()}
+                />
+                <Button
+                  onClick={handleCreateFile}
+                  disabled={!newFileName.trim() || createFileMutation.isPending}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  Create
+                </Button>
+                <Button
+                  onClick={() => setShowCreateDialog(false)}
+                  variant="outline"
+                  size="sm"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
-      </div>
-    </div>
+
+        <div className="flex-1 overflow-auto p-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="text-gray-400">Loading files...</div>
+            </div>
+          ) : (
+            <FileTree files={filteredFiles} onFileSelect={onFileSelect} />
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

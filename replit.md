@@ -12,11 +12,12 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend Architecture
 - **Framework**: React with TypeScript
-- **Styling**: Tailwind CSS with custom dark theme variables
+- **Styling**: Tailwind CSS with dark theme
 - **UI Components**: Radix UI components via shadcn/ui
 - **State Management**: React Query (TanStack Query) for server state
 - **Routing**: Wouter for client-side routing
 - **Build Tool**: Vite for development and building
+- **WebSocket**: Native WebSocket API for real-time communication
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js

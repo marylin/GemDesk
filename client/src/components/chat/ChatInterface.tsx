@@ -1,12 +1,14 @@
-import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { apiRequest } from "@/lib/queryClient";
-import MessageBubble from "./MessageBubble";
-import TypingIndicator from "./TypingIndicator";
-import { Paperclip, Code, Mic, Send } from "lucide-react";
-import type { ChatMessage, File } from "@shared/schema";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Send, Paperclip, Sparkles } from 'lucide-react';
+import MessageBubble from './MessageBubble';
+import TypingIndicator from './TypingIndicator';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import type { ChatMessage } from '@shared/schema';
 
 interface ChatInterfaceProps {
   onSendMessage: (message: string, context?: any) => void;
@@ -14,209 +16,134 @@ interface ChatInterfaceProps {
 }
 
 export default function ChatInterface({ onSendMessage, selectedFile }: ChatInterfaceProps) {
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const queryClient = useQueryClient();
 
-  const { data: messages = [], isLoading } = useQuery<ChatMessage[]>({
+  const { data: messages = [], isLoading, refetch } = useQuery({
     queryKey: ['/api/chat/messages'],
     queryFn: async () => {
-      const response = await fetch('/api/chat/messages?limit=50', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch messages');
-      return response.json();
-    }
+      const response = await apiRequest('GET', '/api/chat/messages');
+      return await response.json();
+    },
+    refetchInterval: 5000 // Refresh every 5 seconds
   });
 
-  const sendMessageMutation = useMutation({
-    mutationFn: async (data: { message: string; context?: any }) => {
-      const response = await apiRequest('POST', '/api/gemini/chat', {
-        message: data.message,
-        context: data.context
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/chat/messages'] });
-      setIsTyping(false);
-    },
-    onError: () => {
-      setIsTyping(false);
-    }
-  });
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
-  const handleSendMessage = async () => {
-    if (!message.trim() || sendMessageMutation.isPending) return;
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim()) return;
 
     const messageText = message;
-    const context = selectedFile ? {
-      selectedFile: {
-        id: selectedFile.id,
-        name: selectedFile.name,
-        path: selectedFile.path,
-        content: selectedFile.content
-      }
-    } : undefined;
-
-    setMessage("");
+    setMessage('');
     setIsTyping(true);
 
-    // Auto-resize textarea
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
-
     try {
-      await sendMessageMutation.mutateAsync({
-        message: messageText,
-        context
+      const context = selectedFile ? {
+        file: {
+          name: selectedFile.name,
+          path: selectedFile.path,
+          type: selectedFile.type
+        }
+      } : undefined;
+
+      // Call the parent handler
+      onSendMessage(messageText, context);
+
+      // Also send via API for persistence
+      await apiRequest('POST', '/api/chat/messages', {
+        content: messageText,
+        metadata: context
       });
+
+      // Refetch messages to get the latest
+      refetch();
     } catch (error) {
       console.error('Failed to send message:', error);
+    } finally {
+      setIsTyping(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+  const handleFileContext = () => {
+    if (selectedFile) {
+      const fileContext = `I'm working with the file: ${selectedFile.name} (${selectedFile.path}). `;
+      setMessage(fileContext + message);
     }
   };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
-    
-    // Auto-resize textarea
-    const textarea = e.target;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`;
-  };
-
-  const insertCodeBlock = () => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const newMessage = message.slice(0, start) + '```\n\n```' + message.slice(end);
-    setMessage(newMessage);
-    
-    // Position cursor inside code block
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + 4, start + 4);
-    }, 0);
-  };
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 128)}px`;
-    }
-  }, [message]);
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
-        {isLoading ? (
-          <div className="text-center text-gray-400">Loading messages...</div>
-        ) : messages.length === 0 ? (
-          <div className="chat-bubble">
-            <MessageBubble
-              message={{
-                id: 0,
-                content: "Hello! I'm your Gemini AI assistant. I can help you with code, answer questions, and assist with your project. What would you like to work on today?",
-                sender: "ai",
-                userId: 0,
-                createdAt: new Date()
-              }}
-            />
-          </div>
-        ) : (
-          messages.map((msg) => (
-            <div key={msg.id} className="chat-bubble">
-              <MessageBubble message={msg} />
-            </div>
-          ))
-        )}
-        
-        {isTyping && <TypingIndicator />}
-        
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Chat Input */}
-      <div className="border-t border-gray-700 p-4">
-        {selectedFile && (
-          <div className="mb-3 p-2 bg-gray-800 rounded-lg border border-gray-700">
-            <div className="text-sm text-blue-400">
-              Context: {selectedFile.name}
-            </div>
-            <div className="text-xs text-gray-400 truncate">
-              {selectedFile.path}
-            </div>
-          </div>
-        )}
-        
-        <div className="flex items-end space-x-3">
-          <div className="flex-1">
-            <div className="bg-gray-800 rounded-lg border border-gray-700 focus-within:border-blue-500 transition-colors">
-              <Textarea
-                ref={textareaRef}
-                value={message}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Type your message... (Shift+Enter for new line)"
-                className="w-full p-3 bg-transparent resize-none outline-none border-0 focus:ring-0 scrollbar-thin min-h-[44px]"
-                rows={1}
-              />
-              <div className="flex items-center justify-between p-3 border-t border-gray-700">
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white"
-                    title="Attach File"
-                  >
+    <div className="flex flex-col h-full bg-gray-800 border-l border-gray-700">
+      <Card className="flex-1 bg-gray-800 border-gray-700 rounded-none">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-white flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-blue-400" />
+            Gemini AI Chat
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col h-full p-0">
+          <ScrollArea className="flex-1 p-4">
+            {isLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <div className="text-gray-400">Loading messages...</div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {messages.map((msg: ChatMessage) => (
+                  <MessageBubble key={msg.id} message={msg} />
+                ))}
+                {isTyping && <TypingIndicator />}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </ScrollArea>
+          
+          <div className="border-t border-gray-700 p-4">
+            {selectedFile && (
+              <div className="mb-3 p-2 bg-blue-900/20 rounded-lg border border-blue-600/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-blue-300">
                     <Paperclip className="w-4 h-4" />
-                  </Button>
+                    <span>{selectedFile.name}</span>
+                  </div>
                   <Button
+                    onClick={handleFileContext}
                     variant="ghost"
-                    size="icon"
-                    className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white"
-                    title="Code Block"
-                    onClick={insertCodeBlock}
+                    size="sm"
+                    className="text-blue-300 hover:text-blue-200"
                   >
-                    <Code className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white"
-                    title="Voice Input"
-                  >
-                    <Mic className="w-4 h-4" />
+                    Add to message
                   </Button>
                 </div>
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={!message.trim() || sendMessageMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <span className="mr-2">Send</span>
-                  <Send className="w-4 h-4" />
-                </Button>
               </div>
-            </div>
+            )}
+            
+            <form onSubmit={handleSendMessage} className="flex gap-2">
+              <Input
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Ask Gemini AI anything..."
+                className="flex-1 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                disabled={isTyping}
+              />
+              <Button 
+                type="submit" 
+                disabled={!message.trim() || isTyping}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </form>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
