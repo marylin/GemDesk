@@ -16,15 +16,15 @@ export default function Dashboard() {
   const [sidebarWidth, setSidebarWidth] = useState(256); // 16rem in pixels
   const [editorWidth, setEditorWidth] = useState(384); // 24rem in pixels
 
-  const { isConnected, sendMessage } = useSocket(token || 'temp_token', {
+  const { isConnected, sendMessage } = useSocket(token, {
     onMessage: (message) => {
-      console.log('WebSocket message:', message);
+      console.log('Socket.IO message received:', message);
     },
     onConnect: () => {
-      console.log('WebSocket connected');
+      console.log('Socket.IO connected successfully');
     },
     onDisconnect: () => {
-      console.log('WebSocket disconnected');
+      console.log('Socket.IO disconnected');
     },
     autoReconnect: true
   });

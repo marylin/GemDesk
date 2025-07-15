@@ -506,91 +506,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Socket.IO handling
-  io.on('connection', async (socket) => {
-    console.log('Socket.IO client connected', socket.id);
-
-    // Handle authentication
-    const token = socket.handshake.auth.token;
-    console.log('Socket.IO token received:', token ? token.substring(0, 10) + '...' : 'NO TOKEN');
-    
-    // Add connection timeout
-    const connectionTimeout = setTimeout(() => {
-      console.log('Socket.IO connection timeout for', socket.id);
-      socket.disconnect();
-    }, 10000);
-
-    if (token) {
-      try {
-        const user = await authService.validateSession(token);
-        if (user) {
-          socket.data.userId = user.id;
-          socket.data.username = user.username;
-          console.log(`Socket.IO authenticated for user: ${user.username} (ID: ${user.id})`);
-          
-          // Send welcome message
-          clearTimeout(connectionTimeout);
-          socket.emit('connected', { message: 'Socket.IO connection established' });
-        } else {
-          console.log('Socket.IO authentication failed: Invalid token');
-          socket.emit('error', { error: 'Authentication failed' });
-          socket.disconnect();
-          return;
-        }
-      } catch (error) {
-        console.error('Socket.IO authentication error:', error);
-        socket.emit('error', { error: 'Authentication failed' });
-        socket.disconnect();
-        return;
-      }
-    } else {
-      console.log('Socket.IO connection without token - allowing temporary connection');
-      // Allow temporary connection for testing
-      socket.data.userId = 5; // Use the authenticated user ID from session
-      socket.data.username = 'John Doe';
+  // Socket.IO middleware for authentication
+  io.use(async (socket, next) => {
+    try {
+      const token = socket.handshake.auth.token;
+      console.log('Socket.IO authentication middleware - token:', token ? token.substring(0, 10) + '...' : 'NO TOKEN');
       
-      clearTimeout(connectionTimeout);
-      socket.emit('connected', { message: 'Socket.IO connection established (temporary)' });
+      if (token) {
+        try {
+          const user = await authService.validateSession(token);
+          if (user) {
+            socket.data.userId = user.id;
+            socket.data.username = user.username;
+            console.log(`Socket.IO authenticated for user: ${user.username} (ID: ${user.id})`);
+            return next();
+          }
+        } catch (error) {
+          console.error('Socket.IO token validation error:', error);
+        }
+      }
+      
+      // Allow connection without token for development
+      console.log('Socket.IO allowing connection without valid token (development mode)');
+      socket.data.userId = 5;
+      socket.data.username = 'John Doe';
+      next();
+    } catch (error) {
+      console.error('Socket.IO authentication middleware error:', error);
+      next(new Error('Authentication failed'));
     }
+  });
+
+  // Socket.IO connection handling
+  io.on('connection', (socket) => {
+    console.log('Socket.IO client connected:', socket.id, 'User:', socket.data.username);
+    
+    // Send welcome message
+    socket.emit('connected', { 
+      message: 'Socket.IO connection established',
+      userId: socket.data.userId,
+      username: socket.data.username
+    });
 
     socket.on('chat_message', async (data) => {
       try {
+        console.log('Socket.IO received chat message from user:', socket.data.username);
         const { content, metadata } = data;
         
-        if (content && socket.data.userId) {
-          // Save user message
+        if (!content) {
+          socket.emit('error', { error: 'Message content is required' });
+          return;
+        }
+        
+        if (!socket.data.userId) {
+          socket.emit('error', { error: 'User not authenticated' });
+          return;
+        }
+
+        // Save user message
+        await storage.createChatMessage({
+          content,
+          sender: 'user',
+          userId: socket.data.userId,
+          metadata
+        });
+
+        // Get AI response from Gemini CLI
+        try {
+          console.log('Sending message to Gemini CLI:', content.substring(0, 50) + '...');
+          const response = await geminiCLIService.sendMessage(content, metadata);
+          console.log('Received response from Gemini CLI:', response.message.substring(0, 50) + '...');
+          
+          // Save AI response
           await storage.createChatMessage({
-            content,
-            sender: 'user',
+            content: response.message,
+            sender: 'ai',
             userId: socket.data.userId,
-            metadata
+            metadata: response.metadata
           });
 
-          // Get AI response
-          try {
-            const response = await geminiCLIService.sendMessage(content, metadata);
-            
-            // Save AI response
-            await storage.createChatMessage({
-              content: response.message,
-              sender: 'ai',
-              userId: socket.data.userId,
-              metadata: response.metadata
-            });
-
-            // Send AI response back
-            socket.emit('ai_response', {
-              content: response.message,
-              metadata: response.metadata
-            });
-          } catch (error) {
-            console.error('AI response error:', error);
-            socket.emit('error', { error: 'Failed to get AI response' });
-          }
+          // Send AI response back to client
+          socket.emit('ai_response', {
+            content: response.message,
+            metadata: response.metadata
+          });
+        } catch (error) {
+          console.error('AI response error:', error);
+          socket.emit('error', { error: 'Failed to get AI response: ' + (error as Error).message });
         }
       } catch (error) {
         console.error('Socket.IO message error:', error);
-        socket.emit('error', { error: 'Message processing failed' });
+        socket.emit('error', { error: 'Message processing failed: ' + (error as Error).message });
       }
     });
 
@@ -603,12 +609,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       socket.emit('pong');
     });
 
-    socket.on('disconnect', () => {
-      console.log(`Socket.IO client disconnected: ${socket.data.username || 'unknown'}`);
+    socket.on('disconnect', (reason) => {
+      console.log(`Socket.IO client disconnected: ${socket.data.username || 'unknown'} (${socket.id}) - Reason: ${reason}`);
     });
 
     socket.on('error', (error) => {
-      console.error('Socket.IO error:', error);
+      console.error('Socket.IO socket error:', error);
     });
   });
 

@@ -21,25 +21,32 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
   const socketRef = useRef<Socket | null>(null);
 
   const connect = useCallback(() => {
-    if (!token || isConnecting || socketRef.current?.connected) {
+    if (isConnecting || socketRef.current?.connected) {
       return;
+    }
+
+    // Clean up existing socket
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
     }
 
     setIsConnecting(true);
     
     try {
-      console.log('Connecting Socket.IO with token:', token.substring(0, 10) + '...');
+      console.log('Connecting Socket.IO with token:', token?.substring(0, 10) + '...' || 'no token');
       
-      const socket = io({
+      const socket = io('/', {
         auth: {
-          token: token
+          token: token || null
         },
-        autoConnect: true,
         transports: ['polling', 'websocket'],
-        forceNew: true,
+        upgrade: true,
+        rememberUpgrade: true,
         reconnection: true,
-        reconnectionAttempts: 3,
+        reconnectionAttempts: 5,
         reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
         timeout: 20000
       });
       
@@ -54,6 +61,8 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
 
       socket.on('connected', (data) => {
         console.log('Socket.IO authenticated:', data.message);
+        setIsConnected(true);
+        setIsConnecting(false);
       });
 
       socket.on('ai_response', (data) => {
@@ -89,13 +98,6 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
         console.error('Socket.IO connection error:', error);
         setIsConnected(false);
         setIsConnecting(false);
-        
-        // Retry connection after delay
-        setTimeout(() => {
-          if (options.autoReconnect !== false) {
-            connect();
-          }
-        }, 3000);
       });
 
       socket.on('disconnect', (reason) => {
@@ -103,13 +105,6 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
         setIsConnected(false);
         setIsConnecting(false);
         options.onDisconnect?.();
-        
-        // Auto-reconnect unless manually disconnected
-        if (reason !== 'io client disconnect' && options.autoReconnect !== false) {
-          setTimeout(() => {
-            connect();
-          }, 2000);
-        }
       });
 
       // socket.connect() is not needed since autoConnect is true
@@ -145,14 +140,12 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
   }, []);
 
   useEffect(() => {
-    if (token) {
-      connect();
-    }
+    connect();
 
     return () => {
       disconnect();
     };
-  }, [token, connect, disconnect]);
+  }, [connect, disconnect]);
 
   return {
     isConnected,
