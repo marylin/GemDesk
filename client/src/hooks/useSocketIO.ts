@@ -40,7 +40,7 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
       socketRef.current = socket;
 
       socket.on('connect', () => {
-        console.log('Socket.IO connected');
+        console.log('Socket.IO connected successfully');
         setIsConnected(true);
         setIsConnecting(false);
         options.onConnect?.();
@@ -71,10 +71,18 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
 
       socket.on('error', (error) => {
         console.error('Socket.IO error:', error);
+        setIsConnected(false);
+        setIsConnecting(false);
         options.onMessage?.({
           type: 'error',
           error: error.error || 'Socket error'
         });
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('Socket.IO connection error:', error);
+        setIsConnected(false);
+        setIsConnecting(false);
       });
 
       socket.on('disconnect', () => {

@@ -489,10 +489,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Socket.IO handling
   io.on('connection', async (socket) => {
-    console.log('Socket.IO client connected');
+    console.log('Socket.IO client connected', socket.id);
 
     // Handle authentication
     const token = socket.handshake.auth.token;
+    console.log('Socket.IO token received:', token ? token.substring(0, 10) + '...' : 'NO TOKEN');
 
     if (token) {
       try {
