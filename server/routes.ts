@@ -1,6 +1,7 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { Server as SocketIOServer } from "socket.io";
+import cors from "cors";
 import { storage } from "./storage";
 import { authService } from "./services/auth";
 import { fileService } from "./services/files";
@@ -30,8 +31,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Socket.IO server
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: "*",
-      methods: ["GET", "POST"]
+      origin: process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : "*",
+      methods: ["GET", "POST"],
+      credentials: true
     }
   });
 
