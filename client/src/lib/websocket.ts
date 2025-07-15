@@ -134,4 +134,5 @@ export class WebSocketManager {
   }
 }
 
-export const websocketManager = new WebSocketManager();
+// Disabled for now - using REST API instead
+// export const websocketManager = new WebSocketManager();
