@@ -17,13 +17,28 @@ export default function Auth() {
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [useRealAuth, setUseRealAuth] = useState(false);
+  const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (useRealAuth && googleButtonRef.current) {
-      googleAuthService.renderSignInButton(googleButtonRef.current, {
-        theme: 'filled_blue'
-      });
+      const hasGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID && 
+        import.meta.env.VITE_GOOGLE_CLIENT_ID !== 'your-google-client-id.apps.googleusercontent.com';
+      
+      if (!hasGoogleClientId) {
+        setGoogleAuthError('Google Client ID not configured');
+        return;
+      }
+
+      try {
+        googleAuthService.renderSignInButton(googleButtonRef.current, {
+          theme: 'filled_blue'
+        });
+        setGoogleAuthError(null);
+      } catch (error) {
+        setGoogleAuthError('Failed to load Google Sign-In');
+        console.error('Google Auth Error:', error);
+      }
     }
   }, [useRealAuth]);
 
@@ -87,11 +102,39 @@ export default function Auth() {
 
           {useRealAuth ? (
             <div className="space-y-3">
-              <div ref={googleButtonRef} className="w-full" />
-              <div className="text-center text-sm text-gray-400">
-                <p>Click the Google button above to sign in with your Google account.</p>
-                <p className="mt-2">Requires valid Google OAuth configuration.</p>
-              </div>
+              {googleAuthError ? (
+                <div className="p-4 bg-red-900/20 border border-red-600 rounded-lg text-center">
+                  <p className="text-red-400 font-medium">Google OAuth Not Configured</p>
+                  <p className="text-red-300 text-sm mt-2">
+                    {googleAuthError}
+                  </p>
+                  <div className="mt-3 text-xs text-red-300">
+                    <p>To enable Google OAuth:</p>
+                    <ol className="list-decimal list-inside mt-1 space-y-1">
+                      <li>Create a Google Cloud project</li>
+                      <li>Enable Google+ API</li>
+                      <li>Create OAuth 2.0 credentials</li>
+                      <li>Add VITE_GOOGLE_CLIENT_ID to environment</li>
+                    </ol>
+                  </div>
+                  <Button
+                    onClick={() => setUseRealAuth(false)}
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 border-red-600 text-red-300 hover:bg-red-900/30"
+                  >
+                    Use Mock Authentication
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div ref={googleButtonRef} className="w-full" />
+                  <div className="text-center text-sm text-gray-400">
+                    <p>Click the Google button above to sign in with your Google account.</p>
+                    <p className="mt-2">Requires valid Google OAuth configuration.</p>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
