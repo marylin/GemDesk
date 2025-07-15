@@ -26,14 +26,17 @@ export default function ChatInterface({ selectedFile }: ChatInterfaceProps) {
       const response = await api.get<ChatMessage[]>('/chat/messages');
       return response.data;
     },
-    refetchInterval: 1000 // Refresh every second for real-time updates
+    refetchInterval: false, // Disable automatic polling - use Socket.IO for real-time updates
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000 // Keep in cache for 10 minutes
   });
 
   const onMessage = useCallback((socketMessage) => {
     console.log('Chat interface received message:', socketMessage);
     if (socketMessage.type === 'ai_response') {
       setIsTyping(false);
-      refetch(); // Refresh messages when AI responds
+      // Only refetch once when AI responds, then stop polling
+      refetch();
     } else if (socketMessage.type === 'error') {
       console.error('Chat error:', socketMessage.error);
       setIsTyping(false);
@@ -88,11 +91,14 @@ export default function ChatInterface({ selectedFile }: ChatInterfaceProps) {
         metadata: context
       });
 
-      // Also send via API for persistence
+      // Also send via API for persistence and refresh to show user message immediately
       await api.post('/chat/messages', {
         content: messageText,
         metadata: context
       });
+      
+      // Refresh once to show the user message immediately
+      refetch();
 
     } catch (error) {
       console.error('Failed to send message:', error);
