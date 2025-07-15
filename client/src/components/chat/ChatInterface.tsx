@@ -26,7 +26,7 @@ export default function ChatInterface({ onSendMessage, selectedFile }: ChatInter
       const response = await api.get<ChatMessage[]>('/chat/messages');
       return response.data;
     },
-    refetchInterval: 5000 // Refresh every 5 seconds
+    refetchInterval: 2000 // Refresh every 2 seconds for faster AI response updates
   });
 
   const scrollToBottom = () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 import Header from "@/components/layout/Header";
@@ -16,21 +16,29 @@ export default function Dashboard() {
   const [sidebarWidth, setSidebarWidth] = useState(256); // 16rem in pixels
   const [editorWidth, setEditorWidth] = useState(384); // 24rem in pixels
 
-  const { isConnected, sendMessage } = useSocket({
-    onMessage: (message) => {
-      console.log('Socket message received:', message);
-      if (message.type === 'ai_response') {
-        // Trigger a refetch of messages to update the chat
-        // This will be handled by the ChatInterface component
-      }
-    },
-    onConnect: () => {
-      console.log('Socket connected successfully');
-    },
-    onDisconnect: () => {
-      console.log('Socket disconnected');
+  const onMessage = useCallback((message) => {
+    console.log('Socket message received:', message);
+    if (message.type === 'ai_response') {
+      // Trigger a refetch of messages to update the chat
+      // This will be handled by the ChatInterface component
     }
-  });
+  }, []);
+
+  const onConnect = useCallback(() => {
+    console.log('Socket connected successfully');
+  }, []);
+
+  const onDisconnect = useCallback(() => {
+    console.log('Socket disconnected');
+  }, []);
+
+  const socketOptions = useMemo(() => ({
+    onMessage,
+    onConnect,
+    onDisconnect
+  }), [onMessage, onConnect, onDisconnect]);
+
+  const { isConnected, sendMessage } = useSocket(socketOptions);
 
   const handleSendMessage = (message: string, context?: any) => {
     if (sendMessage && message.trim()) {
