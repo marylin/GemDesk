@@ -20,8 +20,8 @@ export class GeminiCLIService extends EventEmitter {
     try {
       console.log('Initializing Gemini CLI subprocess...');
       
-      // Spawn the Gemini CLI process
-      this.cliProcess = spawn('npx', ['@google/gemini-cli'], {
+      // Spawn the Gemini CLI process with interactive mode
+      this.cliProcess = spawn('npx', ['@google/gemini-cli', '--interactive'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {
           ...process.env,
@@ -35,15 +35,21 @@ export class GeminiCLIService extends EventEmitter {
 
       // Handle stdout (AI responses)
       this.cliProcess.stdout.on('data', (data) => {
-        this.buffer += data.toString();
+        const output = data.toString();
+        console.log('Gemini CLI stdout:', output);
+        this.buffer += output;
         this.processBuffer();
       });
 
-      // Handle stderr (errors)
+      // Handle stderr (errors and status messages)
       this.cliProcess.stderr.on('data', (data) => {
         const error = data.toString();
-        console.error('Gemini CLI error:', error);
-        this.emit('error', error);
+        console.log('Gemini CLI stderr:', error);
+        
+        // Don't treat all stderr as errors - CLI might send status messages there
+        if (error.includes('Error') || error.includes('error')) {
+          this.emit('error', error);
+        }
       });
 
       // Handle process exit
@@ -69,7 +75,7 @@ export class GeminiCLIService extends EventEmitter {
         this.isReady = true;
         console.log('Gemini CLI is ready');
         this.emit('ready');
-      }, 2000);
+      }, 3000);
 
     } catch (error) {
       console.error('Failed to initialize Gemini CLI:', error);
@@ -83,9 +89,11 @@ export class GeminiCLIService extends EventEmitter {
     this.buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
 
     for (const line of lines) {
-      if (line.trim()) {
+      const trimmedLine = line.trim();
+      if (trimmedLine && !trimmedLine.startsWith('>') && !trimmedLine.includes('Enter your message:')) {
+        console.log('Emitting response:', trimmedLine);
         this.emit('response', {
-          message: line.trim(),
+          message: trimmedLine,
           metadata: { timestamp: new Date().toISOString() }
         });
       }
@@ -123,7 +131,9 @@ export class GeminiCLIService extends EventEmitter {
 
       // Send message to CLI
       try {
+        console.log('Sending message to Gemini CLI:', fullMessage);
         this.cliProcess.stdin.write(fullMessage + '\n');
+        this.cliProcess.stdin.write('\n'); // Send extra newline to ensure processing
       } catch (error) {
         this.removeListener('response', responseHandler);
         this.removeListener('error', errorHandler);
