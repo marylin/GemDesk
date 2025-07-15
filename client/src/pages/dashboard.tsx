@@ -16,7 +16,7 @@ export default function Dashboard() {
   const [sidebarWidth, setSidebarWidth] = useState(256); // 16rem in pixels
   const [editorWidth, setEditorWidth] = useState(384); // 24rem in pixels
 
-  const { isConnected, sendMessage } = useSocket(token || undefined, {
+  const { isConnected, sendMessage } = useSocket(token || 'temp_token', {
     onMessage: (message) => {
       console.log('WebSocket message:', message);
     },

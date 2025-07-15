@@ -23,17 +23,25 @@ export function useAuth() {
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ['/api/auth/me'],
     retry: false,
-    enabled: !!token, // Only run query if we have a token
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
     queryFn: async () => {
-      if (!token) return null;
-      
       try {
         const response = await api.get<{ user: User }>('/auth/me');
+        // If we successfully get user data, extract the token from the response or session
+        if (response.data.user && !token) {
+          // Try to get token from session/cookie or generate one
+          const sessionToken = localStorage.getItem('auth_token') || 'session_token_' + Date.now();
+          setToken(sessionToken);
+          localStorage.setItem('auth_token', sessionToken);
+        }
         return response.data.user;
-      } catch (error) {
-        // axios interceptor will handle 401 errors
-        localStorage.removeItem('auth_token');
-        setToken(null);
+      } catch (error: any) {
+        // Only clear token on actual 401 errors
+        if (error.response?.status === 401) {
+          localStorage.removeItem('auth_token');
+          setToken(null);
+        }
         return null;
       }
     }

@@ -30,12 +30,17 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
     try {
       console.log('Connecting Socket.IO with token:', token.substring(0, 10) + '...');
       
-      const socket = io('/', {
+      const socket = io({
         auth: {
           token: token
         },
-        autoConnect: false,
-        transports: ['websocket', 'polling']
+        autoConnect: true,
+        transports: ['polling', 'websocket'],
+        forceNew: true,
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 1000,
+        timeout: 20000
       });
       
       socketRef.current = socket;
@@ -107,7 +112,7 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
         }
       });
 
-      socket.connect();
+      // socket.connect() is not needed since autoConnect is true
 
     } catch (error) {
       console.error('Socket.IO connection error:', error);
