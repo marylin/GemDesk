@@ -72,8 +72,13 @@ export class GeminiCLIService extends EventEmitter {
         errorOutput += chunk;
       });
 
+      let processCompleted = false;
+
       // Handle process completion
       cliProcess.on('close', (code) => {
+        if (processCompleted) return;
+        processCompleted = true;
+        
         console.log(`Gemini CLI process finished with code ${code}`);
         console.log('Full stdout:', output);
         console.log('Full stderr:', errorOutput);
@@ -91,15 +96,21 @@ export class GeminiCLIService extends EventEmitter {
 
       // Handle process errors
       cliProcess.on('error', (error) => {
+        if (processCompleted) return;
+        processCompleted = true;
+        
         console.error('Gemini CLI spawn error:', error);
         reject(error);
       });
 
-      // Timeout after 60 seconds (increased from 30)
+      // Timeout after 60 seconds (only if process hasn't completed)
       setTimeout(() => {
-        console.log('Gemini CLI timeout - killing process');
-        cliProcess.kill();
-        reject(new Error('Response timeout'));
+        if (!processCompleted) {
+          processCompleted = true;
+          console.log('Gemini CLI timeout - killing process');
+          cliProcess.kill();
+          reject(new Error('Response timeout'));
+        }
       }, 60000);
     });
   }
