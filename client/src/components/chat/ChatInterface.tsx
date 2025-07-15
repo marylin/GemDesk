@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -7,15 +7,15 @@ import { Send, Paperclip, Sparkles } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import TypingIndicator from './TypingIndicator';
 import { useQuery } from '@tanstack/react-query';
+import { useSocket } from '@/hooks/useSocket';
 import { api } from '@/lib/axios';
 import type { ChatMessage } from '@shared/schema';
 
 interface ChatInterfaceProps {
-  onSendMessage: (message: string, context?: any) => void;
   selectedFile?: File | null;
 }
 
-export default function ChatInterface({ onSendMessage, selectedFile }: ChatInterfaceProps) {
+export default function ChatInterface({ selectedFile }: ChatInterfaceProps) {
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -26,8 +26,35 @@ export default function ChatInterface({ onSendMessage, selectedFile }: ChatInter
       const response = await api.get<ChatMessage[]>('/chat/messages');
       return response.data;
     },
-    refetchInterval: 2000 // Refresh every 2 seconds for faster AI response updates
+    refetchInterval: 1000 // Refresh every second for real-time updates
   });
+
+  const onMessage = useCallback((socketMessage) => {
+    console.log('Chat interface received message:', socketMessage);
+    if (socketMessage.type === 'ai_response') {
+      setIsTyping(false);
+      refetch(); // Refresh messages when AI responds
+    } else if (socketMessage.type === 'error') {
+      console.error('Chat error:', socketMessage.error);
+      setIsTyping(false);
+    }
+  }, [refetch]);
+
+  const onConnect = useCallback(() => {
+    console.log('Chat interface Socket connected');
+  }, []);
+
+  const onDisconnect = useCallback(() => {
+    console.log('Chat interface Socket disconnected');
+  }, []);
+
+  const socketOptions = useMemo(() => ({
+    onMessage,
+    onConnect,
+    onDisconnect
+  }), [onMessage, onConnect, onDisconnect]);
+
+  const { isConnected, sendMessage: sendSocketMessage } = useSocket(socketOptions);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -54,8 +81,12 @@ export default function ChatInterface({ onSendMessage, selectedFile }: ChatInter
         }
       } : undefined;
 
-      // Call the parent handler
-      onSendMessage(messageText, context);
+      // Send message via Socket.IO for real-time AI response
+      sendSocketMessage({
+        type: 'chat_message',
+        content: messageText,
+        metadata: context
+      });
 
       // Also send via API for persistence
       await api.post('/chat/messages', {
@@ -63,11 +94,8 @@ export default function ChatInterface({ onSendMessage, selectedFile }: ChatInter
         metadata: context
       });
 
-      // Refetch messages to get the latest
-      refetch();
     } catch (error) {
       console.error('Failed to send message:', error);
-    } finally {
       setIsTyping(false);
     }
   };
