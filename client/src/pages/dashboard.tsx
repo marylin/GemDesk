@@ -5,7 +5,7 @@ import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
 import ChatInterface from "@/components/chat/ChatInterface";
 import FileExplorer from "@/components/file-explorer/FileExplorer";
-import CodeEditor from "@/components/code-editor/CodeEditor";
+import MonacoEditor from "@/components/code-editor/MonacoEditor";
 import { Button } from "@/components/ui/button";
 import { Code2 } from "lucide-react";
 
@@ -116,7 +116,7 @@ export default function Dashboard() {
             />
             
             <div style={{ width: editorWidth }} className="border-l border-gray-700">
-              <CodeEditor 
+              <MonacoEditor 
                 file={selectedFile}
                 onClose={() => setShowCodeEditor(false)}
               />

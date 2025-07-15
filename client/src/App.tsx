@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Auth from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import { useAuth } from "./hooks/useAuth";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 function Router() {
   const { user, isLoading } = useAuth();
@@ -31,12 +32,16 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <ErrorBoundary>
+            <Toaster />
+            <Router />
+          </ErrorBoundary>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
