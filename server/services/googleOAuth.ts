@@ -25,7 +25,10 @@ export class GoogleOAuthService {
   constructor() {
     this.clientId = process.env.VITE_GOOGLE_CLIENT_ID || '';
     this.clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
-    this.redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback';
+    
+    // Use the correct Replit domain for OAuth redirect
+    const replitDomain = process.env.REPLIT_DOMAINS || 'workspace--MarylinAlarcon.repl.co';
+    this.redirectUri = `https://${replitDomain}/api/auth/google/callback`;
   }
 
   getAuthUrl(): string {
