@@ -83,7 +83,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Middleware to extract user from session
+  // Standardized authentication middleware - adds user to request if authenticated
   const authenticateUser = async (req: AuthenticatedRequest, res: any, next: any) => {
     let token = req.headers.authorization?.replace('Bearer ', '');
     
@@ -108,6 +108,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error('Session validation error:', error);
       }
+    }
+    
+    // For development, set a default user if no authenticated user
+    if (process.env.NODE_ENV === 'development' && !req.user) {
+      req.user = {
+        id: 5,
+        username: 'John Doe',
+        email: 'john@example.com',
+        googleId: 'google123',
+        avatar: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+    }
+    
+    next();
+  };
+
+  // Authentication guard middleware - requires authentication
+  const requireAuth = (req: AuthenticatedRequest, res: any, next: any) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authenticated' });
     }
     next();
   };
@@ -208,43 +230,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/auth/me', async (req: AuthenticatedRequest, res) => {
     if (!req.user) {
-      // For development, return a hardcoded user
-      const developmentUser = {
-        id: 5,
-        username: 'John Doe',
-        email: 'john@example.com',
-        googleId: 'google123',
-        avatar: null,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      return res.json({ user: developmentUser });
+      return res.status(401).json({ message: 'Not authenticated' });
     }
     res.json({ user: req.user });
   });
 
-  // File routes
-  app.get('/api/files', async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
+  // File routes - all require authentication
+  app.get('/api/files', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const parentId = req.query.parentId ? parseInt(req.query.parentId as string) : undefined;
-      const files = await fileService.getFiles(req.user.id, parentId);
+      const files = await fileService.getFiles(req.user!.id, parentId);
       res.json(files);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch files' });
     }
   });
 
-  app.get('/api/files/:id', async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
+  app.get('/api/files/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const file = await fileService.getFile(parseInt(req.params.id), req.user.id);
+      const file = await fileService.getFile(parseInt(req.params.id), req.user!.id);
       if (!file) {
         return res.status(404).json({ message: 'File not found' });
       }
@@ -254,11 +258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/files', async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
+  app.post('/api/files', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { name, type, content, parentPath } = req.body;
       
@@ -267,7 +267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const file = await fileService.createFile(
-        req.user.id,
+        req.user!.id,
         name,
         parentPath || "",
         type,
@@ -281,14 +281,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/files/:id', async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
+  app.put('/api/files/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { name, content } = req.body;
-      const file = await fileService.updateFile(parseInt(req.params.id), req.user.id, { name, content });
+      const file = await fileService.updateFile(parseInt(req.params.id), req.user!.id, { name, content });
       
       if (!file) {
         return res.status(404).json({ message: 'File not found' });
@@ -300,13 +296,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/files/:id', async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
+  app.delete('/api/files/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const success = await fileService.deleteFile(parseInt(req.params.id), req.user.id);
+      const success = await fileService.deleteFile(parseInt(req.params.id), req.user!.id);
       
       if (!success) {
         return res.status(404).json({ message: 'File not found' });
@@ -319,11 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // File upload endpoint using multer
-  app.post('/api/files/upload', upload.single('file'), async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
+  app.post('/api/files/upload', requireAuth, upload.single('file'), async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: 'No file uploaded' });
@@ -337,7 +325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await fs.ensureDir(path.dirname(tempPath));
       
       const file = await fileService.createFile(
-        req.user.id,
+        req.user!.id,
         req.file.originalname,
         parentPath,
         'file',
@@ -352,10 +340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Multiple file upload endpoint
-  app.post('/api/files/upload-multiple', upload.array('files', 10), async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
+  app.post('/api/files/upload-multiple', requireAuth, upload.array('files', 10), async (req: AuthenticatedRequest, res) => {
 
     try {
       const files = req.files as Express.Multer.File[];
@@ -375,7 +360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await fs.ensureDir(tempDir);
         
         const uploadedFile = await fileService.createFile(
-          req.user.id,
+          req.user!.id,
           file.originalname,
           parentPath,
           'file',
@@ -392,25 +377,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Chat routes
-  app.get('/api/chat/messages', async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
+  app.get('/api/chat/messages', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-      const messages = await storage.getChatMessages(req.user.id, limit);
+      const messages = await storage.getChatMessages(req.user!.id, limit);
       res.json(messages);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch messages' });
     }
   });
 
-  app.post('/api/chat/messages', async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
+  app.post('/api/chat/messages', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { content, metadata } = req.body;
       
@@ -421,7 +398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const message = await storage.createChatMessage({
         content,
         sender: 'user',
-        userId: req.user.id,
+        userId: req.user!.id,
         metadata
       });
 
@@ -432,11 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Gemini routes
-  app.post('/api/gemini/chat', async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
+  app.post('/api/gemini/chat', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { message, context } = req.body;
       
@@ -448,7 +421,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createChatMessage({
         content: message,
         sender: 'user',
-        userId: req.user.id,
+        userId: req.user!.id,
         metadata: context
       });
 
@@ -459,7 +432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createChatMessage({
         content: response.message,
         sender: 'ai',
-        userId: req.user.id,
+        userId: req.user!.id,
         metadata: response.metadata
       });
 
@@ -470,11 +443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/gemini/analyze-code', async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
+  app.post('/api/gemini/analyze-code', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { code, language } = req.body;
       
@@ -489,11 +458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/gemini/generate-code', async (req: AuthenticatedRequest, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
+  app.post('/api/gemini/generate-code', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { description, language } = req.body;
       

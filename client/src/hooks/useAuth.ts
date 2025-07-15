@@ -22,7 +22,13 @@ export function useAuth() {
 
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ['/api/auth/me'],
-    retry: false,
+    retry: (failureCount, error: any) => {
+      // Don't retry on 401 errors - these are expected when not authenticated
+      if (error.response?.status === 401) {
+        return false;
+      }
+      return failureCount < 2; // Retry up to 2 times for other errors
+    },
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
     queryFn: async () => {
