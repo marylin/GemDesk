@@ -84,13 +84,27 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
         console.error('Socket.IO connection error:', error);
         setIsConnected(false);
         setIsConnecting(false);
+        
+        // Retry connection after delay
+        setTimeout(() => {
+          if (options.autoReconnect !== false) {
+            connect();
+          }
+        }, 3000);
       });
 
-      socket.on('disconnect', () => {
-        console.log('Socket.IO disconnected');
+      socket.on('disconnect', (reason) => {
+        console.log('Socket.IO disconnected:', reason);
         setIsConnected(false);
         setIsConnecting(false);
         options.onDisconnect?.();
+        
+        // Auto-reconnect unless manually disconnected
+        if (reason !== 'io client disconnect' && options.autoReconnect !== false) {
+          setTimeout(() => {
+            connect();
+          }, 2000);
+        }
       });
 
       socket.connect();

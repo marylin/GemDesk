@@ -497,6 +497,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Handle authentication
     const token = socket.handshake.auth.token;
     console.log('Socket.IO token received:', token ? token.substring(0, 10) + '...' : 'NO TOKEN');
+    
+    // Add connection timeout
+    const connectionTimeout = setTimeout(() => {
+      console.log('Socket.IO connection timeout for', socket.id);
+      socket.disconnect();
+    }, 10000);
 
     if (token) {
       try {
@@ -507,6 +513,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`Socket.IO authenticated for user: ${user.username} (ID: ${user.id})`);
           
           // Send welcome message
+          clearTimeout(connectionTimeout);
           socket.emit('connected', { message: 'Socket.IO connection established' });
         } else {
           console.log('Socket.IO authentication failed: Invalid token');
