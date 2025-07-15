@@ -25,12 +25,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Middleware to extract user from session
   const authenticateUser = async (req: AuthenticatedRequest, res: any, next: any) => {
-    const token = req.headers.authorization?.replace('Bearer ', '') || req.headers.cookie?.split('session_token=')[1]?.split(';')[0];
+    let token = req.headers.authorization?.replace('Bearer ', '');
+    
+    // Try to get token from cookie if not in header
+    if (!token && req.headers.cookie) {
+      const cookies = req.headers.cookie.split(';');
+      for (const cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'session_token') {
+          token = value;
+          break;
+        }
+      }
+    }
     
     if (token) {
-      const user = await authService.validateSession(token);
-      if (user) {
-        req.user = user;
+      try {
+        const user = await authService.validateSession(token);
+        if (user) {
+          req.user = user;
+        }
+      } catch (error) {
+        console.error('Session validation error:', error);
       }
     }
     next();
@@ -64,7 +80,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/auth/logout', async (req, res) => {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '') || req.headers.cookie?.split('session_token=')[1]?.split(';')[0];
+      let token = req.headers.authorization?.replace('Bearer ', '');
+      
+      // Try to get token from cookie if not in header
+      if (!token && req.headers.cookie) {
+        const cookies = req.headers.cookie.split(';');
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'session_token') {
+            token = value;
+            break;
+          }
+        }
+      }
       
       if (token) {
         await authService.logout(token);
