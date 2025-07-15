@@ -473,6 +473,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Message queue to prevent concurrent requests per user
+  const messageQueues = new Map<number, Array<{ content: string, metadata: any, socket: any }>>();
+  const processingUsers = new Set<number>();
+
+  const processMessageQueue = async (userId: number) => {
+    if (processingUsers.has(userId)) {
+      return; // Already processing for this user
+    }
+
+    const queue = messageQueues.get(userId) || [];
+    if (queue.length === 0) {
+      return;
+    }
+
+    processingUsers.add(userId);
+    
+    try {
+      const { content, metadata, socket } = queue.shift()!;
+      
+      console.log(`Processing message for user ${userId}: ${content.substring(0, 50)}...`);
+      
+      // First, save the user message
+      await storage.createChatMessage({
+        content: content,
+        sender: 'user',
+        userId: userId,
+        metadata: metadata
+      });
+      
+      // Get AI response from Gemini CLI
+      const response = await geminiCLIService.sendMessage(content, metadata);
+      console.log('Received from Gemini CLI:', response.message.substring(0, 50) + '...');
+      
+      // Save AI response
+      await storage.createChatMessage({
+        content: response.message,
+        sender: 'ai',
+        userId: userId,
+        metadata: response.metadata
+      });
+
+      // Send AI response back to client
+      socket.emit('ai_response', {
+        content: response.message,
+        metadata: response.metadata
+      });
+      
+      console.log('ai_response emitted successfully');
+    } catch (error) {
+      console.error('AI response error:', error);
+      const queue = messageQueues.get(userId) || [];
+      if (queue.length > 0) {
+        const { socket } = queue[0];
+        socket.emit('error', { error: 'Failed to get AI response: ' + (error as Error).message });
+      }
+    } finally {
+      processingUsers.delete(userId);
+      
+      // Process next message in queue if any
+      const remainingQueue = messageQueues.get(userId) || [];
+      if (remainingQueue.length > 0) {
+        setImmediate(() => processMessageQueue(userId));
+      }
+    }
+  };
+
   // Socket.IO connection handling
   io.on('connection', (socket) => {
     console.log('Socket.IO client connected:', socket.id);
@@ -498,36 +564,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
-        // Don't save user message here - it's already saved via the API call
-        // This avoids duplicate messages in the database
-        console.log('Sending to Gemini CLI:', content);
-
-        // Get AI response from Gemini CLI
-        try {
-          console.log('Sending to Gemini CLI:', content.substring(0, 50) + '...');
-          const response = await geminiCLIService.sendMessage(content, metadata);
-          console.log('Received from Gemini CLI:', response.message.substring(0, 50) + '...');
-          
-          // Save AI response
-          await storage.createChatMessage({
-            content: response.message,
-            sender: 'ai',
-            userId: socket.data.userId,
-            metadata: response.metadata
-          });
-
-          // Send AI response back to client
-          console.log('Emitting ai_response to client:', socket.id);
-          console.log('Response content:', response.message);
-          socket.emit('ai_response', {
-            content: response.message,
-            metadata: response.metadata
-          });
-          console.log('ai_response emitted successfully');
-        } catch (error) {
-          console.error('AI response error:', error);
-          socket.emit('error', { error: 'Failed to get AI response: ' + (error as Error).message });
+        const userId = socket.data.userId;
+        
+        // Add message to queue
+        if (!messageQueues.has(userId)) {
+          messageQueues.set(userId, []);
         }
+        
+        const queue = messageQueues.get(userId)!;
+        queue.push({ content, metadata, socket });
+        
+        console.log(`Added message to queue for user ${userId}. Queue length: ${queue.length}`);
+        
+        // Process queue if not already processing
+        processMessageQueue(userId);
+        
       } catch (error) {
         console.error('Socket message error:', error);
         socket.emit('error', { error: 'Message processing failed: ' + (error as Error).message });
@@ -536,6 +587,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     socket.on('disconnect', (reason) => {
       console.log(`Socket.IO client disconnected: ${socket.data.username} (${socket.id}) - ${reason}`);
+      
+      // Clean up queue for disconnected user
+      const userId = socket.data.userId;
+      if (messageQueues.has(userId)) {
+        const queue = messageQueues.get(userId)!;
+        const filteredQueue = queue.filter(item => item.socket.id !== socket.id);
+        if (filteredQueue.length === 0) {
+          messageQueues.delete(userId);
+        } else {
+          messageQueues.set(userId, filteredQueue);
+        }
+      }
     });
   });
 

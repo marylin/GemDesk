@@ -84,20 +84,14 @@ export default function ChatInterface({ selectedFile }: ChatInterfaceProps) {
         }
       } : undefined;
 
-      // Send message via Socket.IO for real-time AI response
+      // Only send message via Socket.IO - the server will handle saving both user and AI messages
       sendSocketMessage({
         type: 'chat_message',
         content: messageText,
         metadata: context
       });
 
-      // Also send via API for persistence and refresh to show user message immediately
-      await api.post('/chat/messages', {
-        content: messageText,
-        metadata: context
-      });
-      
-      // Refresh once to show the user message immediately
+      // Refresh to show the user message immediately
       refetch();
 
     } catch (error) {
