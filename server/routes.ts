@@ -10,6 +10,7 @@ import { storage } from "./storage";
 import { authService } from "./services/auth";
 import { fileService } from "./services/files";
 import { geminiService } from "./services/gemini";
+import { googleOAuthService } from "./services/googleOAuth";
 import { insertChatMessageSchema, insertFileSchema, type User } from "@shared/schema";
 import { z } from "zod";
 
@@ -103,6 +104,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(authenticateUser);
 
   // Auth routes
+  app.get('/api/auth/google', (req, res) => {
+    const authUrl = googleOAuthService.getAuthUrl();
+    res.redirect(authUrl);
+  });
+
+  app.get('/api/auth/google/callback', async (req, res) => {
+    const { code } = req.query;
+    
+    if (!code) {
+      return res.status(400).json({ message: 'Authorization code missing' });
+    }
+
+    try {
+      const tokens = await googleOAuthService.exchangeCodeForTokens(code as string);
+      const userInfo = await googleOAuthService.getUserInfo(tokens.access_token);
+      
+      const result = await authService.authenticateWithGoogle(
+        userInfo.id,
+        userInfo.email,
+        userInfo.name,
+        userInfo.picture
+      );
+      
+      console.log('Authentication successful for user:', userInfo.name, 'with token:', result.token.substring(0, 10) + '...');
+      
+      res.cookie('session_token', result.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      });
+
+      // Redirect to frontend with success
+      res.redirect(`/?auth=success&token=${result.token}`);
+    } catch (error) {
+      console.error('Google auth error:', error);
+      res.redirect('/?auth=error');
+    }
+  });
+
   app.post('/api/auth/google', async (req, res) => {
     try {
       const { googleId, email, username, avatar } = req.body;
