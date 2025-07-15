@@ -7,9 +7,7 @@ export interface GeminiCLIResponse {
 }
 
 export class GeminiCLIService extends EventEmitter {
-  private cliProcess: ChildProcess | null = null;
   private isReady = false;
-  private buffer = '';
 
   constructor() {
     super();
@@ -18,64 +16,13 @@ export class GeminiCLIService extends EventEmitter {
 
   private initializeCLI() {
     try {
-      console.log('Initializing Gemini CLI subprocess...');
+      console.log('Initializing Gemini CLI (non-interactive mode)...');
+      console.log('GEMINI_API_KEY present:', !!process.env.GEMINI_API_KEY);
       
-      // Spawn the Gemini CLI process in default mode (interactive by default)
-      this.cliProcess = spawn('npx', ['@google/gemini-cli'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: {
-          ...process.env,
-          GEMINI_API_KEY: process.env.GEMINI_API_KEY
-        }
-      });
-
-      if (!this.cliProcess.stdout || !this.cliProcess.stderr || !this.cliProcess.stdin) {
-        throw new Error('Failed to initialize CLI streams');
-      }
-
-      // Handle stdout (AI responses)
-      this.cliProcess.stdout.on('data', (data) => {
-        const output = data.toString();
-        console.log('Gemini CLI stdout:', output);
-        this.buffer += output;
-        this.processBuffer();
-      });
-
-      // Handle stderr (errors and status messages)
-      this.cliProcess.stderr.on('data', (data) => {
-        const error = data.toString();
-        console.log('Gemini CLI stderr:', error);
-        
-        // Don't treat all stderr as errors - CLI might send status messages there
-        if (error.includes('Error') || error.includes('error')) {
-          this.emit('error', error);
-        }
-      });
-
-      // Handle process exit
-      this.cliProcess.on('exit', (code) => {
-        console.log(`Gemini CLI process exited with code ${code}`);
-        this.isReady = false;
-        this.cliProcess = null;
-        
-        // Attempt to restart after a delay
-        setTimeout(() => {
-          this.initializeCLI();
-        }, 5000);
-      });
-
-      // Handle process errors
-      this.cliProcess.on('error', (error) => {
-        console.error('Gemini CLI spawn error:', error);
-        this.emit('error', error.message);
-      });
-
-      // Mark as ready after initialization
-      setTimeout(() => {
-        this.isReady = true;
-        console.log('Gemini CLI is ready');
-        this.emit('ready');
-      }, 3000);
+      // Mark as ready - we'll use spawn for each request instead of persistent process
+      this.isReady = true;
+      console.log('Gemini CLI service is ready');
+      this.emit('ready');
 
     } catch (error) {
       console.error('Failed to initialize Gemini CLI:', error);
@@ -83,26 +30,9 @@ export class GeminiCLIService extends EventEmitter {
     }
   }
 
-  private processBuffer() {
-    // Process complete lines from the buffer
-    const lines = this.buffer.split('\n');
-    this.buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
-
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (trimmedLine && !trimmedLine.startsWith('>') && !trimmedLine.includes('Enter your message:')) {
-        console.log('Emitting response:', trimmedLine);
-        this.emit('response', {
-          message: trimmedLine,
-          metadata: { timestamp: new Date().toISOString() }
-        });
-      }
-    }
-  }
-
   async sendMessage(message: string, context?: any): Promise<GeminiCLIResponse> {
     return new Promise((resolve, reject) => {
-      if (!this.isReady || !this.cliProcess || !this.cliProcess.stdin) {
+      if (!this.isReady) {
         reject(new Error('Gemini CLI not ready'));
         return;
       }
@@ -113,39 +43,64 @@ export class GeminiCLIService extends EventEmitter {
         fullMessage = `Context: Working with file ${context.file.name} (${context.file.type})\n\n${message}`;
       }
 
-      // Set up one-time response listener
-      const responseHandler = (response: GeminiCLIResponse) => {
-        this.removeListener('response', responseHandler);
-        this.removeListener('error', errorHandler);
-        resolve(response);
-      };
+      console.log('Sending message to Gemini CLI:', fullMessage);
+      console.log('Using API key:', process.env.GEMINI_API_KEY ? 'Present' : 'Missing');
 
-      const errorHandler = (error: string) => {
-        this.removeListener('response', responseHandler);
-        this.removeListener('error', errorHandler);
-        reject(new Error(error));
-      };
+      // Spawn a new process for each request using -p flag
+      const cliProcess = spawn('npx', ['@google/gemini-cli', '-p', fullMessage], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          GEMINI_API_KEY: process.env.GEMINI_API_KEY
+        }
+      });
 
-      this.once('response', responseHandler);
-      this.once('error', errorHandler);
+      let output = '';
+      let errorOutput = '';
 
-      // Send message to CLI
-      try {
-        console.log('Sending message to Gemini CLI:', fullMessage);
-        this.cliProcess.stdin.write(fullMessage + '\n');
-        this.cliProcess.stdin.write('\n'); // Send extra newline to ensure processing
-      } catch (error) {
-        this.removeListener('response', responseHandler);
-        this.removeListener('error', errorHandler);
+      // Handle stdout (AI responses)
+      cliProcess.stdout.on('data', (data) => {
+        const chunk = data.toString();
+        console.log('Gemini CLI stdout chunk:', chunk);
+        output += chunk;
+      });
+
+      // Handle stderr (errors and status messages)
+      cliProcess.stderr.on('data', (data) => {
+        const chunk = data.toString();
+        console.log('Gemini CLI stderr chunk:', chunk);
+        errorOutput += chunk;
+      });
+
+      // Handle process completion
+      cliProcess.on('close', (code) => {
+        console.log(`Gemini CLI process finished with code ${code}`);
+        console.log('Full stdout:', output);
+        console.log('Full stderr:', errorOutput);
+
+        if (code === 0 && output.trim()) {
+          resolve({
+            message: output.trim(),
+            metadata: { timestamp: new Date().toISOString() }
+          });
+        } else {
+          const error = errorOutput || `Process exited with code ${code}`;
+          reject(new Error(error));
+        }
+      });
+
+      // Handle process errors
+      cliProcess.on('error', (error) => {
+        console.error('Gemini CLI spawn error:', error);
         reject(error);
-      }
+      });
 
-      // Timeout after 30 seconds
+      // Timeout after 60 seconds (increased from 30)
       setTimeout(() => {
-        this.removeListener('response', responseHandler);
-        this.removeListener('error', errorHandler);
+        console.log('Gemini CLI timeout - killing process');
+        cliProcess.kill();
         reject(new Error('Response timeout'));
-      }, 30000);
+      }, 60000);
     });
   }
 
@@ -164,10 +119,6 @@ export class GeminiCLIService extends EventEmitter {
   }
 
   destroy() {
-    if (this.cliProcess) {
-      this.cliProcess.kill();
-      this.cliProcess = null;
-    }
     this.isReady = false;
   }
 }
