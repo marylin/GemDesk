@@ -9,7 +9,7 @@ import path from "path";
 import { storage } from "./storage";
 import { authService } from "./services/auth";
 import { fileService } from "./services/files";
-import { geminiService } from "./services/gemini";
+import { geminiCLIService } from "./services/geminiCLI";
 import { googleOAuthService } from "./services/googleOAuth";
 import { insertChatMessageSchema, insertFileSchema, type User } from "@shared/schema";
 import { z } from "zod";
@@ -435,7 +435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Get AI response
-      const response = await geminiService.sendMessage(message, context);
+      const response = await geminiCLIService.sendMessage(message, context);
 
       // Save AI response
       await storage.createChatMessage({
@@ -464,7 +464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Code and language are required' });
       }
 
-      const response = await geminiService.analyzeCode(code, language);
+      const response = await geminiCLIService.analyzeCode(code, language);
       res.json(response);
     } catch (error) {
       res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to analyze code' });
@@ -483,7 +483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Description is required' });
       }
 
-      const response = await geminiService.generateCode(description, language);
+      const response = await geminiCLIService.generateCode(description, language);
       res.json(response);
     } catch (error) {
       res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to generate code' });
@@ -542,7 +542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Get AI response
           try {
-            const response = await geminiService.sendMessage(content, metadata);
+            const response = await geminiCLIService.sendMessage(content, metadata);
             
             // Save AI response
             await storage.createChatMessage({
