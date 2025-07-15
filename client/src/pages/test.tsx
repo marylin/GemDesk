@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useSocket } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,24 +9,32 @@ export default function TestPage() {
   const [response, setResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const { isConnected, sendMessage } = useSocket({
-    onMessage: (socketMessage) => {
-      console.log('Test page received message:', socketMessage);
-      if (socketMessage.type === 'ai_response') {
-        setResponse(socketMessage.content || '');
-        setIsLoading(false);
-      } else if (socketMessage.type === 'error') {
-        setResponse(`Error: ${socketMessage.error}`);
-        setIsLoading(false);
-      }
-    },
-    onConnect: () => {
-      console.log('Test page Socket connected');
-    },
-    onDisconnect: () => {
-      console.log('Test page Socket disconnected');
+  const onMessage = useCallback((socketMessage) => {
+    console.log('Test page received message:', socketMessage);
+    if (socketMessage.type === 'ai_response') {
+      setResponse(socketMessage.content || '');
+      setIsLoading(false);
+    } else if (socketMessage.type === 'error') {
+      setResponse(`Error: ${socketMessage.error}`);
+      setIsLoading(false);
     }
-  });
+  }, []);
+
+  const onConnect = useCallback(() => {
+    console.log('Test page Socket connected');
+  }, []);
+
+  const onDisconnect = useCallback(() => {
+    console.log('Test page Socket disconnected');
+  }, []);
+
+  const socketOptions = useMemo(() => ({
+    onMessage,
+    onConnect,
+    onDisconnect
+  }), [onMessage, onConnect, onDisconnect]);
+
+  const { isConnected, sendMessage } = useSocket(socketOptions);
 
   const handleSendMessage = () => {
     if (!message.trim()) return;

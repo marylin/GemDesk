@@ -105,7 +105,7 @@ export function useSocket(options: UseSocketOptions = {}) {
       }
     });
 
-  }, [cleanup, options]);
+  }, [cleanup]); // Remove options from dependency to prevent reconnections
 
   const disconnect = useCallback(() => {
     cleanup();
@@ -132,7 +132,7 @@ export function useSocket(options: UseSocketOptions = {}) {
     return () => {
       cleanup();
     };
-  }, [connect, cleanup]);
+  }, []); // Empty dependency array to prevent reconnections
 
   return {
     isConnected,
