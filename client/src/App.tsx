@@ -8,9 +8,29 @@ import Auth from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import { useAuth } from "./hooks/useAuth";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { useEffect } from "react";
 
 function Router() {
   const { user, isLoading } = useAuth();
+  
+  // Handle OAuth callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authStatus = urlParams.get('auth');
+    const token = urlParams.get('token');
+    
+    if (authStatus === 'success' && token) {
+      localStorage.setItem('auth_token', token);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Reload to refresh auth state
+      window.location.reload();
+    } else if (authStatus === 'error') {
+      console.error('OAuth authentication failed');
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
   
   if (isLoading) {
     return (

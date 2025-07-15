@@ -28,6 +28,8 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
     setIsConnecting(true);
     
     try {
+      console.log('Connecting Socket.IO with token:', token.substring(0, 10) + '...');
+      
       const socket = io({
         auth: {
           token: token
@@ -102,13 +104,16 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
 
   const sendMessage = useCallback((message: SocketMessage) => {
     if (socketRef.current && socketRef.current.connected) {
+      console.log('Sending Socket.IO message:', message.type, message.content?.substring(0, 50) + '...');
       socketRef.current.emit(message.type, {
         content: message.content,
         metadata: message.metadata
       });
       return true;
+    } else {
+      console.error('Socket.IO not connected, cannot send message');
+      return false;
     }
-    return false;
   }, []);
 
   useEffect(() => {

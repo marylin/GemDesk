@@ -58,7 +58,7 @@ export default function ChatInterface({ onSendMessage, selectedFile }: ChatInter
       onSendMessage(messageText, context);
 
       // Also send via API for persistence
-      await apiRequest('POST', '/api/chat/messages', {
+      await api.post('/chat/messages', {
         content: messageText,
         metadata: context
       });

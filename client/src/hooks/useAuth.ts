@@ -15,7 +15,9 @@ export function useAuth() {
   // Initialize token from localStorage
   useEffect(() => {
     const savedToken = localStorage.getItem('auth_token');
-    setToken(savedToken);
+    if (savedToken) {
+      setToken(savedToken);
+    }
   }, []);
 
   const { data: user, isLoading } = useQuery<User | null>({
