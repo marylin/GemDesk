@@ -1,0 +1,158 @@
+## Project Requirements
+
+### 1. Project Structure
+Create a monorepo with:
+- `client/` - React frontend (port 3000)
+- `server/` - Node.js backend (port 5000)
+- `shared/` - Shared utilities
+- Root configuration files
+
+### 2. Backend (Node.js/Express)
+- Install and configure Express.js server
+- Install Socket.io for WebSocket communication
+- Install @google/gemini-cli package
+- Create these API endpoints:
+  - `/api/auth` - Google OAuth authentication
+  - `/api/files` - File operations (CRUD)
+  - `/api/gemini` - Gemini CLI integration
+- Set up WebSocket handlers for real-time chat
+- Create a Gemini CLI wrapper service
+- Configure CORS for frontend communication
+- Add session management
+
+### 3. Frontend (React)
+- Create React app with these components:
+  - `Chat.jsx` - Main chat interface with message history
+  - `FileExplorer.jsx` - File browser with drag-and-drop
+  - `CodeEditor.jsx` - Code editor with syntax highlighting
+  - `Sidebar.jsx` - Project navigation
+  - `AuthLogin.jsx` - Authentication UI
+- Install and configure:
+  - Tailwind CSS for styling
+  - Socket.io-client for WebSocket
+  - Axios for HTTP requests
+- Create a desktop-like dark theme UI
+- Add real-time messaging with typing indicators
+
+### 4. Gemini CLI Integration
+- Create a service wrapper around @google/gemini-cli
+- Handle authentication with Google OAuth
+- Implement conversation context management
+- Add file context sharing with Gemini
+- Create command processing pipeline
+
+### 5. Real-time Features
+- WebSocket connection between frontend and backend
+- Live chat with Gemini responses
+- File synchronization
+- Connection status indicators
+- Message history persistence
+
+### 6. Configuration Files
+Create these essential files:
+- `package.json` (root) with scripts to run both client and server
+- `replit.nix` for Node.js environment
+- `.replit` with run command
+- Environment variables setup
+- Tailwind configuration
+
+### 7. Key Features to Implement
+- Google OAuth login flow
+- Real-time chat with Gemini AI
+- File upload/download capabilities
+- Project context awareness
+- Responsive desktop-like interface
+- Dark theme with modern styling
+- Error handling and loading states
+
+### 8. Development Scripts
+Set up these npm scripts in root package.json:
+```json
+{
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm start"
+  }
+}
+9. Environment Variables
+Set up these environment variables:
+
+PORT=5000 (server port)
+CLIENT_URL=http://localhost:3000
+GOOGLE_CLIENT_ID (for OAuth)
+GOOGLE_CLIENT_SECRET (for OAuth)
+GEMINI_API_KEY (for Gemini CLI)
+
+10. UI Requirements
+
+Modern chat interface similar to ChatGPT
+File explorer panel on the left
+Main chat area in the center
+Code editor capability
+Dark theme with glassmorphism effects
+Responsive design
+Loading animations and transitions
+
+Technical Implementation Details
+Backend Architecture
+
+Use Express.js with Socket.io
+Create middleware for authentication
+Implement file system operations
+Set up Gemini CLI as a child process
+Handle WebSocket events for real-time communication
+
+Frontend Architecture
+
+Use React hooks for state management
+Implement WebSocket hooks for real-time data
+Create reusable UI components
+Use Tailwind for styling
+Add proper error boundaries
+
+Integration Points
+
+Connect React frontend to Express backend via WebSocket
+Integrate Gemini CLI responses into chat interface
+Handle file operations through secure API endpoints
+Implement proper authentication flow
+
+Success Criteria
+
+Application runs successfully on Replit
+Users can authenticate with Google
+Real-time chat with Gemini works
+File operations are functional
+Modern desktop-like UI is responsive
+WebSocket communication is stable
+Project context is properly shared with Gemini
+
+Installation Dependencies
+Make sure to install these key packages:
+Root:
+
+concurrently
+cross-env
+
+Server:
+
+express
+socket.io
+@google/gemini-cli
+cors
+dotenv
+express-session
+fs-extra
+multer
+
+Client:
+
+socket.io-client
+axios
+tailwindcss
+@tailwindcss/forms
+lucide-react (for icons)
+
+Start by creating the basic project structure, then implement the core functionality step by step. Focus on getting the WebSocket communication working first, then add the Gemini CLI integration, and finally polish the UI components.
+Create all necessary configuration files and ensure the application can run with a single npm run dev command that starts both the client and server simultaneously.
