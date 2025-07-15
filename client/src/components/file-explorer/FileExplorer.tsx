@@ -56,8 +56,11 @@ export default function FileExplorer({ onFileSelect }: FileExplorerProps) {
 
   const filteredFiles = files
     .filter((file: File) => {
-      // Text search filter
-      const matchesSearch = file.name.toLowerCase().includes(searchTerm.toLowerCase());
+      // Enhanced search: name, path, and content
+      const matchesSearch = searchTerm === '' || 
+        file.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        file.path.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (file.content && file.content.toLowerCase().includes(searchTerm.toLowerCase()));
       
       // Type filter
       const matchesType = filterType === 'all' || 
@@ -67,11 +70,16 @@ export default function FileExplorer({ onFileSelect }: FileExplorerProps) {
       return matchesSearch && matchesType;
     })
     .sort((a: File, b: File) => {
+      // Sort by type first (folders first), then by selected criteria
+      if (a.type !== b.type) {
+        return a.type === 'folder' ? -1 : 1;
+      }
+      
       switch (sortBy) {
         case 'name':
           return a.name.localeCompare(b.name);
         case 'type':
-          return a.type.localeCompare(b.type);
+          return a.name.split('.').pop()?.localeCompare(b.name.split('.').pop() || '') || 0;
         case 'modified':
           return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
         default:
@@ -111,7 +119,7 @@ export default function FileExplorer({ onFileSelect }: FileExplorerProps) {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <Input
-              placeholder="Search files..."
+              placeholder="Search files, paths, and content..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
