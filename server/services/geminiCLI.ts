@@ -20,8 +20,8 @@ export class GeminiCLIService extends EventEmitter {
     try {
       console.log('Initializing Gemini CLI subprocess...');
       
-      // Spawn the Gemini CLI process with interactive mode
-      this.cliProcess = spawn('npx', ['@google/gemini-cli', '--interactive'], {
+      // Spawn the Gemini CLI process in default mode (interactive by default)
+      this.cliProcess = spawn('npx', ['@google/gemini-cli'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {
           ...process.env,
