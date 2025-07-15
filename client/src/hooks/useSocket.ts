@@ -34,6 +34,7 @@ export function useSocket(options: UseSocketOptions = {}) {
 
   const connect = useCallback(() => {
     if (socketRef.current?.connected) {
+      console.log('Socket already connected, skipping connection');
       return;
     }
 
@@ -62,6 +63,7 @@ export function useSocket(options: UseSocketOptions = {}) {
     });
 
     socket.on('ai_response', (data) => {
+      console.log('Client received ai_response:', data);
       options.onMessage?.({
         type: 'ai_response',
         content: data.content,

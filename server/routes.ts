@@ -556,10 +556,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
 
           // Send AI response back to client
+          console.log('Emitting ai_response to client:', socket.id);
+          console.log('Response content:', response.message);
           socket.emit('ai_response', {
             content: response.message,
             metadata: response.metadata
           });
+          console.log('ai_response emitted successfully');
         } catch (error) {
           console.error('AI response error:', error);
           socket.emit('error', { error: 'Failed to get AI response: ' + (error as Error).message });
