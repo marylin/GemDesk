@@ -30,11 +30,12 @@ export function useSocketIO(token?: string, options: UseSocketOptions = {}) {
     try {
       console.log('Connecting Socket.IO with token:', token.substring(0, 10) + '...');
       
-      const socket = io({
+      const socket = io('/', {
         auth: {
           token: token
         },
-        autoConnect: false
+        autoConnect: false,
+        transports: ['websocket', 'polling']
       });
       
       socketRef.current = socket;

@@ -42,8 +42,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       origin: process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : "*",
       methods: ["GET", "POST"],
       credentials: true
-    }
+    },
+    transports: ['websocket', 'polling']
   });
+  
+  console.log('Socket.IO server initialized and listening');
 
   // Multer configuration for file uploads
   const upload = multer({
