@@ -51,14 +51,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const user = await authService.validateSession(token);
         if (user) {
           req.user = user;
-        } else {
-          console.log('Token validation failed for token:', token.substring(0, 10) + '...');
         }
       } catch (error) {
         console.error('Session validation error:', error);
       }
-    } else {
-      console.log('No token provided in request');
     }
     next();
   };

@@ -40,9 +40,12 @@ export function useAuth() {
         if (response.status === 401) {
           localStorage.removeItem('auth_token');
           setToken(null);
+          queryClient.clear();
         }
         return null;
       } catch {
+        localStorage.removeItem('auth_token');
+        setToken(null);
         return null;
       }
     }
