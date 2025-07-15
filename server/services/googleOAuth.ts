@@ -26,12 +26,29 @@ export class GoogleOAuthService {
     this.clientId = process.env.VITE_GOOGLE_CLIENT_ID || '';
     this.clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
     
-    // Use the correct Replit domain for OAuth redirect
-    const replitDomain = process.env.REPLIT_DOMAINS || 'workspace--MarylinAlarcon.repl.co';
-    this.redirectUri = `https://${replitDomain}/api/auth/google/callback`;
+    // Dynamically determine the base URL based on environment
+    this.redirectUri = this.getRedirectUri();
+  }
+
+  private getRedirectUri(): string {
+    // Check if we're in production with a custom domain
+    if (process.env.NODE_ENV === 'production' && process.env.PRODUCTION_URL) {
+      return `${process.env.PRODUCTION_URL}/api/auth/google/callback`;
+    }
+    
+    // Check if we're on Replit
+    if (process.env.REPLIT_DOMAINS) {
+      const replitDomain = process.env.REPLIT_DOMAINS.split(',')[0].trim();
+      return `https://${replitDomain}/api/auth/google/callback`;
+    }
+    
+    // Fallback to localhost for development
+    return 'http://localhost:5000/api/auth/google/callback';
   }
 
   getAuthUrl(): string {
+    console.log('OAuth redirect URI:', this.redirectUri);
+    
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
@@ -42,6 +59,10 @@ export class GoogleOAuthService {
     });
 
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
+  getRedirectUri(): string {
+    return this.redirectUri;
   }
 
   async exchangeCodeForTokens(code: string): Promise<GoogleTokenResponse> {
