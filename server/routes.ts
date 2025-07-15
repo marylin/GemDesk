@@ -43,8 +43,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       methods: ["GET", "POST"],
       credentials: true
     },
-    transports: ['polling', 'websocket'],
-    allowEIO3: true
+    transports: ['polling'],
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000
   });
   
   console.log('Socket.IO server initialized and listening on port', httpServer.address() || 5000);
@@ -506,40 +508,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Socket.IO middleware for authentication
-  io.use(async (socket, next) => {
-    try {
-      const token = socket.handshake.auth.token;
-      console.log('Socket.IO authentication middleware - token:', token ? token.substring(0, 10) + '...' : 'NO TOKEN');
-      
-      if (token) {
-        try {
-          const user = await authService.validateSession(token);
-          if (user) {
-            socket.data.userId = user.id;
-            socket.data.username = user.username;
-            console.log(`Socket.IO authenticated for user: ${user.username} (ID: ${user.id})`);
-            return next();
-          }
-        } catch (error) {
-          console.error('Socket.IO token validation error:', error);
-        }
-      }
-      
-      // Allow connection without token for development
-      console.log('Socket.IO allowing connection without valid token (development mode)');
-      socket.data.userId = 5;
-      socket.data.username = 'John Doe';
-      next();
-    } catch (error) {
-      console.error('Socket.IO authentication middleware error:', error);
-      next(new Error('Authentication failed'));
-    }
-  });
-
   // Socket.IO connection handling
   io.on('connection', (socket) => {
-    console.log('Socket.IO client connected:', socket.id, 'User:', socket.data.username);
+    console.log('Socket.IO client connected:', socket.id);
+    
+    // Set default user data for development
+    socket.data.userId = 5;
+    socket.data.username = 'John Doe';
     
     // Send welcome message
     socket.emit('connected', { 
@@ -550,16 +525,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     socket.on('chat_message', async (data) => {
       try {
-        console.log('Socket.IO received chat message from user:', socket.data.username);
+        console.log('Received chat message from user:', socket.data.username);
         const { content, metadata } = data;
         
         if (!content) {
           socket.emit('error', { error: 'Message content is required' });
-          return;
-        }
-        
-        if (!socket.data.userId) {
-          socket.emit('error', { error: 'User not authenticated' });
           return;
         }
 
@@ -573,9 +543,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Get AI response from Gemini CLI
         try {
-          console.log('Sending message to Gemini CLI:', content.substring(0, 50) + '...');
+          console.log('Sending to Gemini CLI:', content.substring(0, 50) + '...');
           const response = await geminiCLIService.sendMessage(content, metadata);
-          console.log('Received response from Gemini CLI:', response.message.substring(0, 50) + '...');
+          console.log('Received from Gemini CLI:', response.message.substring(0, 50) + '...');
           
           // Save AI response
           await storage.createChatMessage({
@@ -595,26 +565,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           socket.emit('error', { error: 'Failed to get AI response: ' + (error as Error).message });
         }
       } catch (error) {
-        console.error('Socket.IO message error:', error);
+        console.error('Socket message error:', error);
         socket.emit('error', { error: 'Message processing failed: ' + (error as Error).message });
       }
     });
 
-    socket.on('typing', (data) => {
-      // Echo typing indicator to other users (if needed)
-      socket.broadcast.emit('typing', data);
-    });
-
-    socket.on('ping', () => {
-      socket.emit('pong');
-    });
-
     socket.on('disconnect', (reason) => {
-      console.log(`Socket.IO client disconnected: ${socket.data.username || 'unknown'} (${socket.id}) - Reason: ${reason}`);
-    });
-
-    socket.on('error', (error) => {
-      console.error('Socket.IO socket error:', error);
+      console.log(`Socket.IO client disconnected: ${socket.data.username} (${socket.id}) - ${reason}`);
     });
   });
 

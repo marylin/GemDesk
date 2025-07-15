@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useSocketIO as useSocket } from "@/hooks/useSocketIO";
+import { useSocket } from "@/hooks/useSocket";
 import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
 import ChatInterface from "@/components/chat/ChatInterface";
@@ -16,33 +16,37 @@ export default function Dashboard() {
   const [sidebarWidth, setSidebarWidth] = useState(256); // 16rem in pixels
   const [editorWidth, setEditorWidth] = useState(384); // 24rem in pixels
 
-  const { isConnected, sendMessage } = useSocket(token, {
+  const { isConnected, sendMessage } = useSocket({
     onMessage: (message) => {
-      console.log('Socket.IO message received:', message);
+      console.log('Socket message received:', message);
+      if (message.type === 'ai_response') {
+        // Trigger a refetch of messages to update the chat
+        // This will be handled by the ChatInterface component
+      }
     },
     onConnect: () => {
-      console.log('Socket.IO connected successfully');
+      console.log('Socket connected successfully');
     },
     onDisconnect: () => {
-      console.log('Socket.IO disconnected');
-    },
-    autoReconnect: true
+      console.log('Socket disconnected');
+    }
   });
+
+  const handleSendMessage = (message: string, context?: any) => {
+    if (sendMessage && message.trim()) {
+      console.log('Sending chat message:', message);
+      sendMessage({
+        type: 'chat_message',
+        content: message.trim(),
+        metadata: context
+      });
+    }
+  };
 
   const handleFileSelect = (file: any) => {
     setSelectedFile(file);
     if (file.type === 'file') {
       setShowCodeEditor(true);
-    }
-  };
-
-  const handleSendMessage = (message: string, context?: any) => {
-    if (sendMessage) {
-      sendMessage({
-        type: 'chat_message',
-        content: message,
-        metadata: context
-      });
     }
   };
 

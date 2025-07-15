@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { io, Socket } from 'socket.io-client';
 
 interface SocketMessage {
   type: string;
@@ -11,113 +12,130 @@ interface UseSocketOptions {
   onMessage?: (message: SocketMessage) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
-  autoReconnect?: boolean;
 }
 
-export function useSocket(token?: string, options: UseSocketOptions = {}) {
+export function useSocket(options: UseSocketOptions = {}) {
   const [isConnected, setIsConnected] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const socketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 5;
 
-  const connect = useCallback(() => {
-    if (!token || socketRef.current?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket connect skipped:', { hasToken: !!token, readyState: socketRef.current?.readyState });
-      return;
-    }
-
-    setIsConnecting(true);
-    
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws?token=${token}`;
-    
-    console.log('Connecting to WebSocket:', wsUrl);
-    
-    const socket = new WebSocket(wsUrl);
-    socketRef.current = socket;
-
-    socket.onopen = () => {
-      setIsConnected(true);
-      setIsConnecting(false);
-      reconnectAttempts.current = 0;
-      options.onConnect?.();
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const message: SocketMessage = JSON.parse(event.data);
-        options.onMessage?.(message);
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
-      }
-    };
-
-    socket.onclose = () => {
-      setIsConnected(false);
-      setIsConnecting(false);
-      socketRef.current = null;
-      options.onDisconnect?.();
-
-      // Auto-reconnect logic
-      if (options.autoReconnect !== false && reconnectAttempts.current < maxReconnectAttempts) {
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-        reconnectTimeoutRef.current = setTimeout(() => {
-          reconnectAttempts.current++;
-          connect();
-        }, delay);
-      }
-    };
-
-    socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setIsConnecting(false);
-    };
-  }, [token, options]);
-
-  const disconnect = useCallback(() => {
+  const cleanup = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
     
     if (socketRef.current) {
-      socketRef.current.close();
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
       socketRef.current = null;
     }
-    
-    setIsConnected(false);
-    setIsConnecting(false);
   }, []);
 
-  const sendMessage = useCallback((message: SocketMessage) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify(message));
-      return true;
+  const connect = useCallback(() => {
+    if (socketRef.current?.connected) {
+      return;
     }
-    return false;
+
+    cleanup();
+
+    console.log('Initializing Socket.IO connection...');
+    
+    const socket = io('/', {
+      transports: ['polling'],
+      upgrade: true,
+      timeout: 10000,
+      reconnection: false // We'll handle reconnection manually
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('Socket.IO connected:', socket.id);
+      setIsConnected(true);
+      options.onConnect?.();
+    });
+
+    socket.on('connected', (data) => {
+      console.log('Socket.IO authenticated:', data);
+      setIsConnected(true);
+    });
+
+    socket.on('ai_response', (data) => {
+      options.onMessage?.({
+        type: 'ai_response',
+        content: data.content,
+        metadata: data.metadata
+      });
+    });
+
+    socket.on('error', (error) => {
+      console.error('Socket.IO error:', error);
+      setIsConnected(false);
+      options.onMessage?.({
+        type: 'error',
+        error: error.error || 'Socket error'
+      });
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket.IO connection error:', error);
+      setIsConnected(false);
+      
+      // Retry connection after 3 seconds
+      reconnectTimeoutRef.current = setTimeout(() => {
+        console.log('Retrying Socket.IO connection...');
+        connect();
+      }, 3000);
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log('Socket.IO disconnected:', reason);
+      setIsConnected(false);
+      options.onDisconnect?.();
+      
+      // Auto-reconnect unless manually disconnected
+      if (reason !== 'io client disconnect') {
+        reconnectTimeoutRef.current = setTimeout(() => {
+          console.log('Reconnecting Socket.IO...');
+          connect();
+        }, 2000);
+      }
+    });
+
+  }, [cleanup, options]);
+
+  const disconnect = useCallback(() => {
+    cleanup();
+    setIsConnected(false);
+  }, [cleanup]);
+
+  const sendMessage = useCallback((message: SocketMessage) => {
+    if (socketRef.current?.connected) {
+      console.log('Sending message:', message.type);
+      socketRef.current.emit(message.type, {
+        content: message.content,
+        metadata: message.metadata
+      });
+      return true;
+    } else {
+      console.warn('Socket not connected, cannot send message');
+      return false;
+    }
   }, []);
 
   useEffect(() => {
-    if (token) {
-      console.log('useSocket: Token available, connecting...', token);
-      connect();
-    } else {
-      console.log('useSocket: No token, disconnecting...');
-      disconnect();
-    }
-
+    connect();
+    
     return () => {
-      disconnect();
+      cleanup();
     };
-  }, [token, connect, disconnect]);
+  }, [connect, cleanup]);
 
   return {
     isConnected,
-    isConnecting,
-    sendMessage,
     connect,
-    disconnect
+    disconnect,
+    sendMessage
   };
 }
