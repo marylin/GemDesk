@@ -1,6 +1,6 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
+import { Server as SocketIOServer } from "socket.io";
 import { storage } from "./storage";
 import { authService } from "./services/auth";
 import { fileService } from "./services/files";
@@ -12,7 +12,7 @@ interface AuthenticatedRequest extends Request {
   user?: User;
 }
 
-interface AuthenticatedWebSocket extends WebSocket {
+interface SocketData {
   userId?: number;
   username?: string;
 }
@@ -27,8 +27,13 @@ interface WebSocketMessage {
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
-  // WebSocket server on /ws path
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  // Socket.IO server
+  const io = new SocketIOServer(httpServer, {
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
+  });
 
   // Middleware to extract user from session
   const authenticateUser = async (req: AuthenticatedRequest, res: any, next: any) => {
@@ -333,107 +338,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // WebSocket handling
-  wss.on('connection', async (ws: AuthenticatedWebSocket, req) => {
-    console.log('WebSocket client connected');
+  // Socket.IO handling
+  io.on('connection', async (socket) => {
+    console.log('Socket.IO client connected');
 
-    // Handle authentication via query params or headers
-    const url = new URL(req.url!, `http://${req.headers.host}`);
-    const token = url.searchParams.get('token');
+    // Handle authentication
+    const token = socket.handshake.auth.token;
 
     if (token) {
       try {
         const user = await authService.validateSession(token);
         if (user) {
-          ws.userId = user.id;
-          ws.username = user.username;
-          console.log(`WebSocket authenticated for user: ${user.username} (ID: ${user.id})`);
+          socket.data.userId = user.id;
+          socket.data.username = user.username;
+          console.log(`Socket.IO authenticated for user: ${user.username} (ID: ${user.id})`);
           
           // Send welcome message
-          ws.send(JSON.stringify({ type: 'connected', message: 'WebSocket connection established' }));
+          socket.emit('connected', { message: 'Socket.IO connection established' });
         } else {
-          console.log('WebSocket authentication failed: Invalid token');
-          ws.send(JSON.stringify({ type: 'error', error: 'Authentication failed' }));
-          ws.close(1008, 'Authentication failed');
+          console.log('Socket.IO authentication failed: Invalid token');
+          socket.emit('error', { error: 'Authentication failed' });
+          socket.disconnect();
           return;
         }
       } catch (error) {
-        console.error('WebSocket authentication error:', error);
-        ws.send(JSON.stringify({ type: 'error', error: 'Authentication failed' }));
-        ws.close(1008, 'Authentication failed');
+        console.error('Socket.IO authentication error:', error);
+        socket.emit('error', { error: 'Authentication failed' });
+        socket.disconnect();
         return;
       }
     } else {
-      console.log('WebSocket connection without token');
-      ws.send(JSON.stringify({ type: 'error', error: 'No authentication token provided' }));
-      ws.close(1008, 'No authentication token provided');
+      console.log('Socket.IO connection without token');
+      socket.emit('error', { error: 'No authentication token provided' });
+      socket.disconnect();
       return;
     }
 
-    ws.on('message', async (data) => {
+    socket.on('chat_message', async (data) => {
       try {
-        const message = JSON.parse(data.toString());
+        const { content, metadata } = data;
         
-        if (!ws.userId) {
-          console.log('WebSocket message received but user not authenticated');
-          ws.send(JSON.stringify({ type: 'error', error: 'Not authenticated' }));
-          return;
-        }
-        
-        console.log(`WebSocket message from user ${ws.username}: ${message.type}`);
+        if (content && socket.data.userId) {
+          // Save user message
+          await storage.createChatMessage({
+            content,
+            sender: 'user',
+            userId: socket.data.userId,
+            metadata
+          });
 
-        switch (message.type) {
-          case 'chat_message':
-            // Handle real-time chat
-            const response = await geminiService.sendMessage(message.content, message.context);
+          // Get AI response
+          try {
+            const response = await geminiService.sendMessage(content, metadata);
             
-            // Save messages to storage
-            await storage.createChatMessage({
-              content: message.content,
-              sender: 'user',
-              userId: ws.userId,
-              metadata: message.context
-            });
-
+            // Save AI response
             await storage.createChatMessage({
               content: response.message,
               sender: 'ai',
-              userId: ws.userId,
+              userId: socket.data.userId,
               metadata: response.metadata
             });
 
-            // Send response back to client
-            ws.send(JSON.stringify({
-              type: 'ai_response',
+            // Send AI response back
+            socket.emit('ai_response', {
               content: response.message,
               metadata: response.metadata
-            }));
-            break;
-
-          case 'typing':
-            // Broadcast typing indicator to other clients (if needed)
-            ws.send(JSON.stringify({ type: 'typing_ack' }));
-            break;
-
-          case 'ping':
-            ws.send(JSON.stringify({ type: 'pong' }));
-            break;
-
-          default:
-            ws.send(JSON.stringify({ error: 'Unknown message type' }));
+            });
+          } catch (error) {
+            console.error('AI response error:', error);
+            socket.emit('error', { error: 'Failed to get AI response' });
+          }
         }
       } catch (error) {
-        console.error('WebSocket message error:', error);
-        ws.send(JSON.stringify({ error: 'Message processing failed' }));
+        console.error('Socket.IO message error:', error);
+        socket.emit('error', { error: 'Message processing failed' });
       }
     });
 
-    ws.on('close', () => {
-      console.log(`WebSocket client disconnected: ${ws.username || 'unknown'}`);
+    socket.on('typing', (data) => {
+      // Echo typing indicator to other users (if needed)
+      socket.broadcast.emit('typing', data);
     });
 
-    ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
+    socket.on('ping', () => {
+      socket.emit('pong');
+    });
+
+    socket.on('disconnect', () => {
+      console.log(`Socket.IO client disconnected: ${socket.data.username || 'unknown'}`);
+    });
+
+    socket.on('error', (error) => {
+      console.error('Socket.IO error:', error);
     });
   });
 
