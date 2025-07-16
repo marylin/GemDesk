@@ -1,0 +1,25 @@
+How the Gemini CLI Desktop UI App Works Technically
+Architecture Overview
+The application uses a three-tier architecture with a React frontend, Node.js backend, and the official Gemini CLI as the AI processing layer. Everything runs in a single Replit project as a monorepo.
+Frontend (React Client)
+The React frontend runs on port 3000 and provides a desktop-like interface with multiple panels. The main chat component maintains a conversation history and connects to the backend via WebSocket for real-time communication. A file explorer component shows the project directory structure and allows users to create, edit, and delete files. The code editor component provides syntax highlighting and file editing capabilities. The sidebar shows project context and navigation options.
+The frontend uses Socket.io-client to establish a persistent WebSocket connection to the backend server. When a user types a message, it gets sent through the WebSocket to the server. The frontend also makes HTTP requests to REST API endpoints for file operations, authentication, and configuration management.
+Backend (Node.js Server)
+The Express.js server runs on port 5000 and acts as the middleware between the frontend and the Gemini CLI. It handles multiple responsibilities including WebSocket communication, HTTP API endpoints, file system operations, and Gemini CLI process management.
+The server uses Socket.io to maintain real-time connections with frontend clients. When a message arrives via WebSocket, the server processes it and forwards it to the Gemini CLI subprocess. The server also provides REST API endpoints for authentication, file CRUD operations, and project management.
+Gemini CLI Integration
+The backend spawns the official Gemini CLI as a child process using Node.js child_process module. The server communicates with the Gemini CLI through stdin/stdout, sending user messages and receiving AI responses. The server manages the CLI process lifecycle, handles authentication with Google OAuth, and maintains conversation context.
+The Gemini CLI runs in interactive mode, so the server keeps the process alive and streams data back and forth. When the CLI responds, the server captures the output and sends it back to the frontend via WebSocket.
+Real-time Communication Flow
+Here's how a typical interaction works: User types a message in the React chat interface. The message gets sent via WebSocket to the Node.js server. The server receives the message and writes it to the Gemini CLI's stdin. The Gemini CLI processes the request and writes a response to stdout. The Node.js server captures this response and sends it back to the React frontend via WebSocket. The frontend receives the response and updates the chat interface in real-time.
+File System Operations
+The backend provides secure file system access through REST API endpoints. Users can upload files through the frontend, which sends them to the server via HTTP POST requests. The server saves files to the local file system and can share file contents with the Gemini CLI for context. The file explorer component refreshes via WebSocket events when files change.
+Authentication Management
+The server handles Google OAuth authentication for accessing the Gemini API. It stores authentication tokens securely and manages session state. The frontend redirects users to Google's OAuth flow when needed, and the server handles the callback to complete authentication.
+Project Context Sharing
+The server maintains awareness of the current project by scanning the file system and sharing relevant context with the Gemini CLI. This includes file contents, directory structure, and project metadata. The CLI can then provide more relevant responses based on the project context.
+Development and Deployment
+The entire application runs as a single Replit project using npm scripts. The root package.json contains a "dev" script that uses concurrently to start both the React development server and the Node.js backend server simultaneously. Replit's environment handles the process management and port forwarding.
+Data Flow Summary
+Frontend React app connects to Node.js server via WebSocket. Server spawns and manages Gemini CLI subprocess. User messages flow: React → WebSocket → Node.js → Gemini CLI. AI responses flow: Gemini CLI → Node.js → WebSocket → React. File operations flow: React → HTTP API → Node.js → File System. Authentication flows through Google OAuth handled by the Node.js server.
+This architecture provides a seamless desktop-like experience while leveraging the full power of the Gemini CLI through a modern web interface, all running efficiently within Replit's cloud environment.
