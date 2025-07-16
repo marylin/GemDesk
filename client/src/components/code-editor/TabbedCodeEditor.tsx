@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { File as FileType } from '@shared/schema';
 import { cn } from '@/lib/utils';
+import AIToolbar from '@/components/ai/AIToolbar';
 
 interface TabbedCodeEditorProps {
   className?: string;
@@ -367,6 +368,17 @@ export default function TabbedCodeEditor({ className }: TabbedCodeEditorProps) {
           {/* Tab Content */}
           {activeTabId && editorTabs.find(tab => tab.id === activeTabId) && (
             <div className="flex-1 flex flex-col">
+              {/* AI Toolbar */}
+              <AIToolbar 
+                code={editorTabs.find(tab => tab.id === activeTabId)?.content || ''}
+                language={getLanguageFromExtension(editorTabs.find(tab => tab.id === activeTabId)?.file.name || '')}
+                fileName={editorTabs.find(tab => tab.id === activeTabId)?.file.name}
+                onResult={(result) => {
+                  console.log('AI Result:', result);
+                  // AI results are automatically saved to chat history via the backend
+                }}
+              />
+              
               {/* Editor toolbar */}
               <div className="flex items-center justify-between p-2 bg-gray-800 border-b border-gray-700">
                 <div className="flex items-center gap-2 text-sm text-gray-300">

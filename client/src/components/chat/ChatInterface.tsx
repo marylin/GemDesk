@@ -10,6 +10,7 @@ import ConnectionStatusIndicator from '@/components/ui/ConnectionStatus';
 import { useQuery } from '@tanstack/react-query';
 import { useSocket } from '@/hooks/useSocket';
 import { api } from '@/lib/axios';
+import ConversationHistory from '@/components/ai/ConversationHistory';
 import type { ChatMessage } from '@shared/schema';
 
 interface ChatInterfaceProps {
@@ -118,7 +119,12 @@ export default function ChatInterface({ selectedFile }: ChatInterfaceProps) {
 
   return (
     <div className="flex flex-col h-full bg-gray-800 border-l border-gray-700">
-      <Card className="flex-1 bg-gray-800 border-gray-700 rounded-none">
+      {/* Conversation History (collapsible) */}
+      <div className="max-h-64 border-b border-gray-700">
+        <ConversationHistory className="h-full" />
+      </div>
+      
+      <Card className="flex-1 bg-gray-800 border-gray-700 rounded-none border-t-0">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-white flex items-center gap-2">

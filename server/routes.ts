@@ -445,13 +445,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/gemini/analyze-code', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const { code, language } = req.body;
+      const { code, language, context } = req.body;
       
       if (!code || !language) {
         return res.status(400).json({ message: 'Code and language are required' });
       }
 
-      const response = await geminiCLIService.analyzeCode(code, language);
+      const response = await geminiCLIService.analyzeCode(code, language, context);
+      
+      // Save analysis result
+      await storage.createChatMessage({
+        content: `Code Analysis: ${language} code analyzed`,
+        sender: 'ai',
+        userId: req.user!.id,
+        metadata: { type: 'code_analysis', language, ...response.metadata }
+      });
+
       res.json(response);
     } catch (error) {
       res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to analyze code' });
@@ -460,16 +469,203 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/gemini/generate-code', requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const { description, language } = req.body;
+      const { description, language, context } = req.body;
       
       if (!description) {
         return res.status(400).json({ message: 'Description is required' });
       }
 
-      const response = await geminiCLIService.generateCode(description, language);
+      const response = await geminiCLIService.generateCode(description, language, context);
+      
+      // Save generation result
+      await storage.createChatMessage({
+        content: `Code Generated: ${description}`,
+        sender: 'ai',
+        userId: req.user!.id,
+        metadata: { type: 'code_generation', language, description, ...response.metadata }
+      });
+
       res.json(response);
     } catch (error) {
       res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to generate code' });
+    }
+  });
+
+  // Advanced AI Features
+  app.post('/api/gemini/suggest-improvements', requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { code, language, context } = req.body;
+      
+      if (!code || !language) {
+        return res.status(400).json({ message: 'Code and language are required' });
+      }
+
+      const response = await geminiCLIService.suggestCodeImprovements(code, language, context);
+      
+      await storage.createChatMessage({
+        content: `Code Suggestions: ${language} improvements suggested`,
+        sender: 'ai',
+        userId: req.user!.id,
+        metadata: { type: 'code_suggestions', language, ...response.metadata }
+      });
+
+      res.json(response);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to suggest improvements' });
+    }
+  });
+
+  app.post('/api/gemini/explain-code', requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { code, language, complexity = 'intermediate' } = req.body;
+      
+      if (!code || !language) {
+        return res.status(400).json({ message: 'Code and language are required' });
+      }
+
+      const response = await geminiCLIService.explainCode(code, language, complexity);
+      
+      await storage.createChatMessage({
+        content: `Code Explanation: ${language} code explained (${complexity} level)`,
+        sender: 'ai',
+        userId: req.user!.id,
+        metadata: { type: 'code_explanation', language, complexity, ...response.metadata }
+      });
+
+      res.json(response);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to explain code' });
+    }
+  });
+
+  app.post('/api/gemini/generate-tests', requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { code, language, testFramework } = req.body;
+      
+      if (!code || !language) {
+        return res.status(400).json({ message: 'Code and language are required' });
+      }
+
+      const response = await geminiCLIService.generateTests(code, language, testFramework);
+      
+      await storage.createChatMessage({
+        content: `Tests Generated: ${language} unit tests created`,
+        sender: 'ai',
+        userId: req.user!.id,
+        metadata: { type: 'test_generation', language, testFramework, ...response.metadata }
+      });
+
+      res.json(response);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to generate tests' });
+    }
+  });
+
+  app.post('/api/gemini/optimize-code', requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { code, language, optimizationType = 'all' } = req.body;
+      
+      if (!code || !language) {
+        return res.status(400).json({ message: 'Code and language are required' });
+      }
+
+      const response = await geminiCLIService.optimizeCode(code, language, optimizationType);
+      
+      await storage.createChatMessage({
+        content: `Code Optimized: ${language} code optimized for ${optimizationType}`,
+        sender: 'ai',
+        userId: req.user!.id,
+        metadata: { type: 'code_optimization', language, optimizationType, ...response.metadata }
+      });
+
+      res.json(response);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to optimize code' });
+    }
+  });
+
+  app.post('/api/gemini/generate-docs', requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { code, language, docType = 'api' } = req.body;
+      
+      if (!code || !language) {
+        return res.status(400).json({ message: 'Code and language are required' });
+      }
+
+      const response = await geminiCLIService.generateDocumentation(code, language, docType);
+      
+      await storage.createChatMessage({
+        content: `Documentation Generated: ${docType} docs for ${language} code`,
+        sender: 'ai',
+        userId: req.user!.id,
+        metadata: { type: 'documentation_generation', language, docType, ...response.metadata }
+      });
+
+      res.json(response);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to generate documentation' });
+    }
+  });
+
+  app.post('/api/gemini/convert-code', requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { code, fromLanguage, toLanguage, context } = req.body;
+      
+      if (!code || !fromLanguage || !toLanguage) {
+        return res.status(400).json({ message: 'Code, fromLanguage, and toLanguage are required' });
+      }
+
+      const response = await geminiCLIService.convertCode(code, fromLanguage, toLanguage, context);
+      
+      await storage.createChatMessage({
+        content: `Code Converted: ${fromLanguage} to ${toLanguage}`,
+        sender: 'ai',
+        userId: req.user!.id,
+        metadata: { type: 'code_conversion', fromLanguage, toLanguage, ...response.metadata }
+      });
+
+      res.json(response);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : 'Failed to convert code' });
+    }
+  });
+
+  // Conversation History Management
+  app.get('/api/gemini/history', requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { type, limit = 50 } = req.query;
+      
+      let messages = await storage.getChatMessages(req.user!.id, parseInt(limit as string));
+      
+      // Filter by AI interaction type if specified
+      if (type) {
+        messages = messages.filter(msg => 
+          msg.sender === 'ai' && 
+          msg.metadata && 
+          msg.metadata.type === type
+        );
+      }
+      
+      res.json(messages);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch AI history' });
+    }
+  });
+
+  app.delete('/api/gemini/history', requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Clear conversation history (only AI messages)
+      const messages = await storage.getChatMessages(req.user!.id, 1000);
+      
+      for (const message of messages) {
+        if (message.sender === 'ai') {
+          await storage.deleteChatMessage(message.id);
+        }
+      }
+      
+      res.json({ message: 'AI conversation history cleared' });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to clear AI history' });
     }
   });
 

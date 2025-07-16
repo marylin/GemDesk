@@ -8,6 +8,7 @@ import { api } from '@/lib/axios';
 import { Plus, Folder, Search, Upload, Filter } from 'lucide-react';
 import FileTree from './FileTree';
 import FileUpload from '@/components/file-upload/FileUpload';
+import AIFileActions from './AIFileActions';
 import type { File } from '@shared/schema';
 
 interface FileExplorerProps {
@@ -115,6 +116,8 @@ export default function FileExplorer({ onFileSelect }: FileExplorerProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col h-full p-0">
+        {/* AI File Actions */}
+        <AIFileActions onFileChange={() => queryClient.invalidateQueries({ queryKey: ['/api/files'] })} />
         <div className="p-4 border-b border-gray-700 space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
