@@ -1,126 +1,224 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useSocket } from "@/hooks/useSocket";
-import Header from "@/components/layout/Header";
-import Sidebar from "@/components/layout/Sidebar";
 import ChatInterface from "@/components/chat/ChatInterface";
 import FileExplorer from "@/components/file-explorer/FileExplorer";
-import MonacoEditor from "@/components/code-editor/MonacoEditor";
+import TabbedCodeEditor from "@/components/code-editor/TabbedCodeEditor";
+import WindowManager, { WindowPanel } from "@/components/window-manager/WindowManager";
+import WorkspaceManager, { Workspace } from "@/components/window-manager/WorkspaceManager";
 import { Button } from "@/components/ui/button";
-import { Code2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { LogOut, User, MessageSquare, FolderOpen, Code } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import type { File } from '@shared/schema';
 
 export default function Dashboard() {
-  const { user, token } = useAuth();
-  const [showCodeEditor, setShowCodeEditor] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<any>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(256); // 16rem in pixels
-  const [editorWidth, setEditorWidth] = useState(384); // 24rem in pixels
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [panels, setPanels] = useState<WindowPanel[]>([]);
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
 
-  // Socket connection is now handled directly in ChatInterface component
-  const [isConnected, setIsConnected] = useState(false);
-  
-  // Mock connection status for header display
-  useEffect(() => {
-    setIsConnected(true);
+  const handleFileSelect = useCallback((file: File) => {
+    // Use the global function to open file in editor
+    if ((window as any).openFileInEditor && file.type === 'file') {
+      (window as any).openFileInEditor(file);
+    }
   }, []);
 
-  const handleFileSelect = (file: any) => {
-    setSelectedFile(file);
-    if (file.type === 'file') {
-      setShowCodeEditor(true);
+  // Initialize default panels
+  useEffect(() => {
+    const defaultPanels: WindowPanel[] = [
+      {
+        id: 'file-explorer',
+        title: 'File Explorer',
+        icon: <FolderOpen className="w-4 h-4" />,
+        component: <FileExplorer onFileSelect={handleFileSelect} />,
+        defaultSize: 25,
+        canClose: false
+      },
+      {
+        id: 'chat-interface',
+        title: 'Gemini Chat',
+        icon: <MessageSquare className="w-4 h-4" />,
+        component: <ChatInterface />,
+        defaultSize: 40,
+        canClose: false
+      },
+      {
+        id: 'code-editor',
+        title: 'Code Editor',
+        icon: <Code className="w-4 h-4" />,
+        component: <TabbedCodeEditor />,
+        defaultSize: 35,
+        canClose: false
+      }
+    ];
+
+    setPanels(defaultPanels);
+  }, [handleFileSelect]);
+
+  const handlePanelClose = useCallback((panelId: string) => {
+    setPanels(prev => prev.filter(panel => panel.id !== panelId));
+    toast({
+      title: "Panel Closed",
+      description: `Panel removed from workspace`,
+    });
+  }, [toast]);
+
+  const handlePanelMinimize = useCallback((panelId: string) => {
+    const panel = panels.find(p => p.id === panelId);
+    toast({
+      title: "Panel Minimized",
+      description: `${panel?.title} minimized to taskbar`,
+    });
+  }, [panels, toast]);
+
+  const handlePanelMaximize = useCallback((panelId: string) => {
+    const panel = panels.find(p => p.id === panelId);
+    toast({
+      title: "Panel Maximized",
+      description: `${panel?.title} is now in fullscreen mode`,
+    });
+  }, [panels, toast]);
+
+  const handleSaveWorkspace = useCallback((workspace: Omit<Workspace, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newWorkspace: Workspace = {
+      ...workspace,
+      id: Date.now().toString(),
+      panels: panels.map(panel => ({
+        id: panel.id,
+        title: panel.title,
+        isMinimized: panel.isMinimized,
+        isMaximized: panel.isMaximized,
+        defaultSize: panel.defaultSize
+      })),
+      layout: {
+        panelSizes: {},
+        version: '1.0'
+      },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    setCurrentWorkspace(newWorkspace);
+    toast({
+      title: "Workspace Saved",
+      description: `Workspace "${workspace.name}" saved successfully`,
+    });
+  }, [panels, toast]);
+
+  const handleLoadWorkspace = useCallback((workspace: Workspace) => {
+    setCurrentWorkspace(workspace);
+    
+    // Restore panel states if available
+    if (workspace.panels && workspace.panels.length > 0) {
+      setPanels(prev => prev.map(panel => {
+        const savedPanel = workspace.panels.find((p: any) => p.id === panel.id);
+        if (savedPanel) {
+          return {
+            ...panel,
+            isMinimized: savedPanel.isMinimized,
+            isMaximized: savedPanel.isMaximized,
+            defaultSize: savedPanel.defaultSize
+          };
+        }
+        return panel;
+      }));
     }
-  };
+
+    toast({
+      title: "Workspace Loaded",
+      description: `Workspace "${workspace.name}" loaded successfully`,
+    });
+  }, [toast]);
+
+  const handleLogout = useCallback(() => {
+    window.location.href = '/api/logout';
+  }, []);
 
   if (!user) {
-    return <div>Loading...</div>;
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-900 text-white">
+        <div className="text-center">
+          <div className="text-6xl mb-4">⚡</div>
+          <h2 className="text-xl font-semibold mb-2">Loading Gemini CLI Desktop</h2>
+          <p className="text-gray-400">Initializing your workspace...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="h-screen flex flex-col bg-gray-900 text-white">
-      <Header user={user} isConnected={isConnected} />
-      
-      <div className="flex-1 flex overflow-hidden">
-        {/* File Explorer Sidebar */}
-        <div style={{ width: sidebarWidth }} className="border-r border-gray-700">
-          <FileExplorer onFileSelect={handleFileSelect} />
-        </div>
-
-        {/* Resizer for sidebar */}
-        <div 
-          className="resizer"
-          onMouseDown={(e) => {
-            const startX = e.clientX;
-            const startWidth = sidebarWidth;
-
-            const handleMouseMove = (e: MouseEvent) => {
-              const newWidth = Math.max(200, Math.min(500, startWidth + (e.clientX - startX)));
-              setSidebarWidth(newWidth);
-            };
-
-            const handleMouseUp = () => {
-              document.removeEventListener('mousemove', handleMouseMove);
-              document.removeEventListener('mouseup', handleMouseUp);
-            };
-
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-          }}
-        />
-
-        {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col">
-          <ChatInterface 
-            selectedFile={selectedFile}
+      {/* Desktop Header */}
+      <div className="h-12 bg-gray-800 border-b border-gray-700 flex items-center justify-between px-4 shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded"></div>
+            <span className="font-semibold">Gemini CLI Desktop</span>
+          </div>
+          
+          <WorkspaceManager
+            currentWorkspace={currentWorkspace}
+            onSaveWorkspace={handleSaveWorkspace}
+            onLoadWorkspace={handleLoadWorkspace}
           />
         </div>
 
-        {/* Code Editor Panel */}
-        {showCodeEditor && (
-          <>
-            {/* Resizer for editor */}
-            <div 
-              className="resizer"
-              onMouseDown={(e) => {
-                const startX = e.clientX;
-                const startWidth = editorWidth;
-
-                const handleMouseMove = (e: MouseEvent) => {
-                  const newWidth = Math.max(300, Math.min(800, startWidth - (e.clientX - startX)));
-                  setEditorWidth(newWidth);
-                };
-
-                const handleMouseUp = () => {
-                  document.removeEventListener('mousemove', handleMouseMove);
-                  document.removeEventListener('mouseup', handleMouseUp);
-                };
-
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseUp);
-              }}
-            />
-            
-            <div style={{ width: editorWidth }} className="border-l border-gray-700">
-              <MonacoEditor 
-                file={selectedFile}
-                onClose={() => setShowCodeEditor(false)}
-              />
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-sm text-gray-300">
+            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+            <span>Connected</span>
+          </div>
+          
+          <div className="h-6 w-px bg-gray-600"></div>
+          
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full overflow-hidden">
+              {user.profileImageUrl ? (
+                <img 
+                  src={user.profileImageUrl} 
+                  alt={user.firstName || 'User'} 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-600 flex items-center justify-center">
+                  <User className="w-3 h-3" />
+                </div>
+              )}
             </div>
-          </>
-        )}
-      </div>
+            <span className="text-sm text-gray-300">
+              {user.firstName || user.email}
+            </span>
+          </div>
 
-      {/* Floating Action Button */}
-      {!showCodeEditor && (
-        <div className="fixed bottom-6 right-6 z-50">
           <Button
-            onClick={() => setShowCodeEditor(true)}
-            className="w-14 h-14 bg-blue-600 hover:bg-blue-700 rounded-full shadow-lg transition-all transform hover:scale-105"
-            size="icon"
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="text-gray-300 hover:bg-gray-700"
           >
-            <Code2 className="w-6 h-6" />
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
-      )}
+      </div>
+
+      {/* Window Manager */}
+      <div className="flex-1 overflow-hidden">
+        <WindowManager
+          panels={panels}
+          onPanelClose={handlePanelClose}
+          onPanelMinimize={handlePanelMinimize}
+          onPanelMaximize={handlePanelMaximize}
+          onSaveWorkspace={() => {
+            // Trigger save dialog through WorkspaceManager
+            document.querySelector('[data-state="open"]')?.dispatchEvent(new Event('click'));
+          }}
+          onLoadWorkspace={() => {
+            // Trigger load dialog through WorkspaceManager
+            document.querySelector('[data-state="open"]')?.dispatchEvent(new Event('click'));
+          }}
+        />
+      </div>
     </div>
   );
 }
