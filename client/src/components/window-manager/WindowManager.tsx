@@ -6,8 +6,6 @@ import {
   Minimize2, 
   Maximize2, 
   X, 
-  MoreHorizontal,
-  Plus,
   Save,
   FolderOpen,
   Settings
@@ -23,15 +21,6 @@ export interface WindowPanel {
   canClose?: boolean;
   icon?: React.ReactNode;
   defaultSize?: number;
-}
-
-export interface WindowTab {
-  id: string;
-  title: string;
-  component: React.ReactNode;
-  isDirty?: boolean;
-  canClose?: boolean;
-  icon?: React.ReactNode;
 }
 
 interface WindowManagerProps {
@@ -55,7 +44,6 @@ export default function WindowManager({
 }: WindowManagerProps) {
   const [minimizedPanels, setMinimizedPanels] = useState<Set<string>>(new Set());
   const [maximizedPanel, setMaximizedPanel] = useState<string | null>(null);
-  const [panelSizes, setPanelSizes] = useState<{ [key: string]: number }>({});
   const [showTaskbar, setShowTaskbar] = useState(true);
   
   const panelGroupRef = useRef<any>(null);
@@ -75,18 +63,7 @@ export default function WindowManager({
             break;
           case 'm':
             event.preventDefault();
-            toggleTaskbar();
-            break;
-          case '1':
-          case '2':
-          case '3':
-          case '4':
-          case '5':
-            event.preventDefault();
-            const panelIndex = parseInt(event.key) - 1;
-            if (panels[panelIndex]) {
-              togglePanelMinimize(panels[panelIndex].id);
-            }
+            setShowTaskbar(prev => !prev);
             break;
         }
       }
@@ -94,7 +71,7 @@ export default function WindowManager({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [panels, onSaveWorkspace, onLoadWorkspace]);
+  }, [onSaveWorkspace, onLoadWorkspace]);
 
   const togglePanelMinimize = useCallback((panelId: string) => {
     setMinimizedPanels(prev => {
@@ -103,44 +80,58 @@ export default function WindowManager({
         newSet.delete(panelId);
       } else {
         newSet.add(panelId);
-        // If panel was maximized, unmaximize it
-        if (maximizedPanel === panelId) {
-          setMaximizedPanel(null);
-        }
       }
       return newSet;
     });
+    
+    // Clear maximized state if minimizing
+    if (maximizedPanel === panelId) {
+      setMaximizedPanel(null);
+    }
+    
     onPanelMinimize?.(panelId);
   }, [maximizedPanel, onPanelMinimize]);
 
   const togglePanelMaximize = useCallback((panelId: string) => {
-    if (maximizedPanel === panelId) {
-      setMaximizedPanel(null);
-    } else {
-      setMaximizedPanel(panelId);
-      // Unminimize if minimized
-      setMinimizedPanels(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(panelId);
-        return newSet;
-      });
-    }
+    setMaximizedPanel(prev => prev === panelId ? null : panelId);
+    
+    // Clear minimized state if maximizing
+    setMinimizedPanels(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(panelId);
+      return newSet;
+    });
+    
     onPanelMaximize?.(panelId);
-  }, [maximizedPanel, onPanelMaximize]);
+  }, [onPanelMaximize]);
+
+  const handleRestorePanel = useCallback((panelId: string) => {
+    setMinimizedPanels(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(panelId);
+      return newSet;
+    });
+  }, []);
 
   const handlePanelClose = useCallback((panelId: string) => {
+    setMinimizedPanels(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(panelId);
+      return newSet;
+    });
+    
+    if (maximizedPanel === panelId) {
+      setMaximizedPanel(null);
+    }
+    
     onPanelClose?.(panelId);
-  }, [onPanelClose]);
-
-  const toggleTaskbar = useCallback(() => {
-    setShowTaskbar(prev => !prev);
-  }, []);
+  }, [maximizedPanel, onPanelClose]);
 
   const visiblePanels = panels.filter(panel => !minimizedPanels.has(panel.id));
   const hasMaximizedPanel = maximizedPanel !== null;
 
   const renderPanelHeader = (panel: WindowPanel) => (
-    <div className="flex items-center justify-between p-2 bg-gray-800 border-b border-gray-700">
+    <div className="flex items-center justify-between p-2 bg-gray-800 border-b border-gray-700 shrink-0">
       <div className="flex items-center gap-2 text-sm text-gray-300">
         {panel.icon}
         <span className="font-medium">{panel.title}</span>
@@ -151,6 +142,7 @@ export default function WindowManager({
           size="sm"
           className="h-6 w-6 p-0 hover:bg-gray-700"
           onClick={() => togglePanelMinimize(panel.id)}
+          title="Minimize"
         >
           <Minimize2 className="h-3 w-3" />
         </Button>
@@ -159,6 +151,7 @@ export default function WindowManager({
           size="sm"
           className="h-6 w-6 p-0 hover:bg-gray-700"
           onClick={() => togglePanelMaximize(panel.id)}
+          title="Maximize"
         >
           <Maximize2 className="h-3 w-3" />
         </Button>
@@ -168,6 +161,7 @@ export default function WindowManager({
             size="sm"
             className="h-6 w-6 p-0 hover:bg-red-600"
             onClick={() => handlePanelClose(panel.id)}
+            title="Close"
           >
             <X className="h-3 w-3" />
           </Button>
@@ -176,13 +170,10 @@ export default function WindowManager({
     </div>
   );
 
-  const renderPanel = (panel: WindowPanel, isMaximized = false) => (
+  const renderPanel = (panel: WindowPanel) => (
     <Card 
       key={panel.id}
-      className={cn(
-        "bg-gray-900 border-gray-700 rounded-none flex flex-col h-full",
-        isMaximized && "fixed inset-0 z-50 rounded-none"
-      )}
+      className="bg-gray-900 border-gray-700 rounded-none flex flex-col h-full"
     >
       {renderPanelHeader(panel)}
       <div className="flex-1 overflow-hidden">
@@ -192,24 +183,25 @@ export default function WindowManager({
   );
 
   const renderTaskbar = () => (
-    <div className="h-10 bg-gray-800 border-t border-gray-700 flex items-center justify-between px-4">
+    <div className="h-10 bg-gray-800 border-t border-gray-700 flex items-center justify-between px-4 shrink-0">
       <div className="flex items-center gap-2">
-        {panels.map(panel => (
-          <Button
-            key={panel.id}
-            variant={minimizedPanels.has(panel.id) ? "outline" : "secondary"}
-            size="sm"
-            className={cn(
-              "h-8 text-xs",
-              minimizedPanels.has(panel.id) && "opacity-60",
-              maximizedPanel === panel.id && "bg-blue-600 hover:bg-blue-700"
-            )}
-            onClick={() => togglePanelMinimize(panel.id)}
-          >
-            {panel.icon}
-            <span className="ml-1">{panel.title}</span>
-          </Button>
-        ))}
+        {Array.from(minimizedPanels).map(panelId => {
+          const panel = panels.find(p => p.id === panelId);
+          if (!panel) return null;
+          
+          return (
+            <Button
+              key={panelId}
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs bg-gray-700 hover:bg-gray-600"
+              onClick={() => handleRestorePanel(panelId)}
+            >
+              {panel.icon}
+              <span className="ml-1 truncate max-w-20">{panel.title}</span>
+            </Button>
+          );
+        })}
       </div>
       
       <div className="flex items-center gap-2">
@@ -235,7 +227,7 @@ export default function WindowManager({
           variant="ghost"
           size="sm"
           className="h-8 w-8 p-0"
-          onClick={toggleTaskbar}
+          onClick={() => setShowTaskbar(prev => !prev)}
           title="Toggle Taskbar (Ctrl+M)"
         >
           <Settings className="h-4 w-4" />
@@ -244,12 +236,13 @@ export default function WindowManager({
     </div>
   );
 
+  // Handle maximized panel
   if (hasMaximizedPanel) {
     const maximizedPanelData = panels.find(p => p.id === maximizedPanel);
     if (maximizedPanelData) {
       return (
         <div className={cn("h-full flex flex-col", className)}>
-          {renderPanel(maximizedPanelData, true)}
+          {renderPanel(maximizedPanelData)}
           {showTaskbar && renderTaskbar()}
         </div>
       );

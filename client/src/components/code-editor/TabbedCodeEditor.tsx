@@ -305,81 +305,70 @@ export default function TabbedCodeEditor({ className }: TabbedCodeEditorProps) {
     };
   }, [openFile]);
 
-  const editorContent = activeTab ? (
-    <div className="h-full flex flex-col">
-      {/* Editor toolbar */}
-      <div className="flex items-center justify-between p-2 bg-gray-800 border-b border-gray-700">
-        <div className="flex items-center gap-2 text-sm text-gray-300">
-          <span>Language: {getLanguageFromExtension(activeTab.file.name)}</span>
-          {activeTab.isDirty && <span className="text-orange-400">• Unsaved</span>}
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleSaveFile}
-            disabled={!activeTab.isDirty || updateFileMutation.isPending}
-            title="Save (Ctrl+S)"
-          >
-            <Save className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDownloadFile}
-            title="Download file"
-          >
-            <Download className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-      
-      {/* Monaco Editor */}
-      <div className="flex-1">
-        <Editor
-          height="100%"
-          language={getLanguageFromExtension(activeTab.file.name)}
-          value={activeTab.content}
-          onChange={handleContentChange}
-          theme="vs-dark"
-          options={{
-            minimap: { enabled: true },
-            fontSize: 14,
-            lineNumbers: 'on',
-            roundedSelection: false,
-            scrollBeyondLastLine: false,
-            readOnly: false,
-            automaticLayout: true,
-            tabSize: 2,
-            insertSpaces: true,
-            wordWrap: 'on',
-            bracketPairColorization: { enabled: true },
-            folding: true,
-            foldingStrategy: 'indentation',
-            showFoldingControls: 'always',
-            unfoldOnClickAfterEndOfLine: true,
-            cursorBlinking: 'blink',
-            cursorSmoothCaretAnimation: 'on'
-          }}
-        />
-      </div>
-    </div>
-  ) : (
-    <div className="h-full flex items-center justify-center text-gray-400">
-      <div className="text-center">
-        <div className="text-6xl mb-4">📝</div>
-        <h3 className="text-lg font-semibold mb-2">Code Editor</h3>
-        <p>Select a file from the explorer to start editing</p>
-        <p className="text-sm mt-2">Keyboard shortcuts: Ctrl+S (Save), Ctrl+W (Close Tab)</p>
-      </div>
-    </div>
-  );
-
   return (
     <TabbedPanel
       tabs={editorTabs.map(tab => ({
         ...tab,
-        component: editorContent
+        component: (
+          <div className="h-full flex flex-col">
+            {/* Editor toolbar */}
+            <div className="flex items-center justify-between p-2 bg-gray-800 border-b border-gray-700">
+              <div className="flex items-center gap-2 text-sm text-gray-300">
+                <span>Language: {getLanguageFromExtension(tab.file.name)}</span>
+                {tab.isDirty && <span className="text-orange-400">• Unsaved</span>}
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSaveFile}
+                  disabled={!tab.isDirty || updateFileMutation.isPending}
+                  title="Save (Ctrl+S)"
+                >
+                  <Save className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDownloadFile}
+                  title="Download file"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Monaco Editor */}
+            <div className="flex-1">
+              <Editor
+                height="100%"
+                language={getLanguageFromExtension(tab.file.name)}
+                value={tab.content}
+                onChange={handleContentChange}
+                theme="vs-dark"
+                options={{
+                  minimap: { enabled: true },
+                  fontSize: 14,
+                  lineNumbers: 'on',
+                  roundedSelection: false,
+                  scrollBeyondLastLine: false,
+                  readOnly: false,
+                  automaticLayout: true,
+                  tabSize: 2,
+                  insertSpaces: true,
+                  wordWrap: 'on',
+                  bracketPairColorization: { enabled: true },
+                  folding: true,
+                  foldingStrategy: 'indentation',
+                  showFoldingControls: 'always',
+                  unfoldOnClickAfterEndOfLine: true,
+                  cursorBlinking: 'blink',
+                  cursorSmoothCaretAnimation: 'on'
+                }}
+              />
+            </div>
+          </div>
+        )
       }))}
       activeTabId={activeTabId}
       onTabChange={handleTabChange}
@@ -387,6 +376,16 @@ export default function TabbedCodeEditor({ className }: TabbedCodeEditorProps) {
       title="Code Editor"
       icon={<Code className="w-4 h-4" />}
       className={className}
+      emptyContent={
+        <div className="h-full flex items-center justify-center text-gray-400">
+          <div className="text-center">
+            <div className="text-6xl mb-4">📝</div>
+            <h3 className="text-lg font-semibold mb-2">Code Editor</h3>
+            <p>Select a file from the explorer to start editing</p>
+            <p className="text-sm mt-2">Keyboard shortcuts: Ctrl+S (Save), Ctrl+W (Close Tab)</p>
+          </div>
+        </div>
+      }
     />
   );
 }

@@ -23,6 +23,7 @@ interface TabbedPanelProps {
   className?: string;
   title?: string;
   icon?: React.ReactNode;
+  emptyContent?: React.ReactNode;
 }
 
 export default function TabbedPanel({
@@ -33,7 +34,8 @@ export default function TabbedPanel({
   onTabAdd,
   className,
   title,
-  icon
+  icon,
+  emptyContent
 }: TabbedPanelProps) {
   const [currentTab, setCurrentTab] = useState(activeTabId || tabs[0]?.id || '');
 
@@ -76,22 +78,26 @@ export default function TabbedPanel({
             </Button>
           )}
         </div>
-        <div className="flex-1 flex items-center justify-center text-gray-400">
-          <div className="text-center">
-            <div className="text-4xl mb-2">📄</div>
-            <p>No tabs open</p>
-            {onTabAdd && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={onTabAdd}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                New Tab
-              </Button>
-            )}
-          </div>
+        <div className="flex-1">
+          {emptyContent || (
+            <div className="flex-1 flex items-center justify-center text-gray-400">
+              <div className="text-center">
+                <div className="text-4xl mb-2">📄</div>
+                <p>No tabs open</p>
+                {onTabAdd && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={onTabAdd}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    New Tab
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </Card>
     );
