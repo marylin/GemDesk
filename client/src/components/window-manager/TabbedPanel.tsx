@@ -145,12 +145,12 @@ export default function TabbedPanel({
                     <Circle className="h-2 w-2 fill-current text-orange-400" />
                   )}
                   {tab.canClose && (
-                    <button
+                    <div
                       onClick={(e) => handleTabClose(tab.id, e)}
-                      className="ml-1 hover:bg-gray-600 rounded p-0.5 transition-colors"
+                      className="ml-1 hover:bg-gray-600 rounded p-0.5 transition-colors cursor-pointer"
                     >
                       <X className="h-3 w-3" />
-                    </button>
+                    </div>
                   )}
                 </TabsTrigger>
               ))}

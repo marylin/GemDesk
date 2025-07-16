@@ -17,6 +17,7 @@ import {
   Archive
 } from 'lucide-react';
 import type { File as FileType } from '@shared/schema';
+import { cn } from '@/lib/utils';
 
 interface TabbedCodeEditorProps {
   className?: string;
@@ -306,78 +307,18 @@ export default function TabbedCodeEditor({ className }: TabbedCodeEditorProps) {
   }, [openFile]);
 
   return (
-    <TabbedPanel
-      tabs={editorTabs.map(tab => ({
-        ...tab,
-        component: (
-          <div className="h-full flex flex-col">
-            {/* Editor toolbar */}
-            <div className="flex items-center justify-between p-2 bg-gray-800 border-b border-gray-700">
-              <div className="flex items-center gap-2 text-sm text-gray-300">
-                <span>Language: {getLanguageFromExtension(tab.file.name)}</span>
-                {tab.isDirty && <span className="text-orange-400">• Unsaved</span>}
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSaveFile}
-                  disabled={!tab.isDirty || updateFileMutation.isPending}
-                  title="Save (Ctrl+S)"
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleDownloadFile}
-                  title="Download file"
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            
-            {/* Monaco Editor */}
-            <div className="flex-1">
-              <Editor
-                height="100%"
-                language={getLanguageFromExtension(tab.file.name)}
-                value={tab.content}
-                onChange={handleContentChange}
-                theme="vs-dark"
-                options={{
-                  minimap: { enabled: true },
-                  fontSize: 14,
-                  lineNumbers: 'on',
-                  roundedSelection: false,
-                  scrollBeyondLastLine: false,
-                  readOnly: false,
-                  automaticLayout: true,
-                  tabSize: 2,
-                  insertSpaces: true,
-                  wordWrap: 'on',
-                  bracketPairColorization: { enabled: true },
-                  folding: true,
-                  foldingStrategy: 'indentation',
-                  showFoldingControls: 'always',
-                  unfoldOnClickAfterEndOfLine: true,
-                  cursorBlinking: 'blink',
-                  cursorSmoothCaretAnimation: 'on'
-                }}
-              />
-            </div>
-          </div>
-        )
-      }))}
-      activeTabId={activeTabId}
-      onTabChange={handleTabChange}
-      onTabClose={handleTabClose}
-      title="Code Editor"
-      icon={<Code className="w-4 h-4" />}
-      className={className}
-      emptyContent={
-        <div className="h-full flex items-center justify-center text-gray-400">
+    <div className={cn("bg-gray-900 border-gray-700 h-full flex flex-col", className)}>
+      {/* Panel Header */}
+      <div className="flex items-center justify-between p-2 bg-gray-800 border-b border-gray-700 shrink-0">
+        <div className="flex items-center gap-2 text-sm text-gray-300">
+          <Code className="w-4 h-4" />
+          <span className="font-medium">Code Editor</span>
+        </div>
+      </div>
+
+      {editorTabs.length === 0 ? (
+        // Empty state
+        <div className="flex-1 flex items-center justify-center text-gray-400">
           <div className="text-center">
             <div className="text-6xl mb-4">📝</div>
             <h3 className="text-lg font-semibold mb-2">Code Editor</h3>
@@ -385,7 +326,106 @@ export default function TabbedCodeEditor({ className }: TabbedCodeEditorProps) {
             <p className="text-sm mt-2">Keyboard shortcuts: Ctrl+S (Save), Ctrl+W (Close Tab)</p>
           </div>
         </div>
-      }
-    />
+      ) : (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Tab Bar */}
+          <div className="bg-gray-800 border-b border-gray-700">
+            <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600">
+              {editorTabs.map((tab) => (
+                <div
+                  key={tab.id}
+                  className={cn(
+                    "relative flex items-center gap-2 px-3 py-2 border-b-2 cursor-pointer min-w-fit",
+                    tab.id === activeTabId 
+                      ? "border-blue-500 bg-gray-700 text-white" 
+                      : "border-transparent bg-transparent text-gray-300 hover:bg-gray-700"
+                  )}
+                  onClick={() => setActiveTabId(tab.id)}
+                >
+                  {tab.icon}
+                  <span className="text-sm">{tab.title}</span>
+                  {tab.isDirty && (
+                    <div className="h-2 w-2 rounded-full bg-orange-400" />
+                  )}
+                  {tab.canClose && (
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTabClose(tab.id);
+                      }}
+                      className="ml-1 hover:bg-gray-600 rounded p-0.5 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          {activeTabId && editorTabs.find(tab => tab.id === activeTabId) && (
+            <div className="flex-1 flex flex-col">
+              {/* Editor toolbar */}
+              <div className="flex items-center justify-between p-2 bg-gray-800 border-b border-gray-700">
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <span>Language: {getLanguageFromExtension(editorTabs.find(tab => tab.id === activeTabId)?.file.name || '')}</span>
+                  {editorTabs.find(tab => tab.id === activeTabId)?.isDirty && <span className="text-orange-400">• Unsaved</span>}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSaveFile}
+                    disabled={!editorTabs.find(tab => tab.id === activeTabId)?.isDirty || updateFileMutation.isPending}
+                    title="Save (Ctrl+S)"
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDownloadFile}
+                    title="Download file"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Monaco Editor */}
+              <div className="flex-1">
+                <Editor
+                  height="100%"
+                  language={getLanguageFromExtension(editorTabs.find(tab => tab.id === activeTabId)?.file.name || '')}
+                  value={editorTabs.find(tab => tab.id === activeTabId)?.content || ''}
+                  onChange={handleContentChange}
+                  theme="vs-dark"
+                  options={{
+                    minimap: { enabled: true },
+                    fontSize: 14,
+                    lineNumbers: 'on',
+                    roundedSelection: false,
+                    scrollBeyondLastLine: false,
+                    readOnly: false,
+                    automaticLayout: true,
+                    tabSize: 2,
+                    insertSpaces: true,
+                    wordWrap: 'on',
+                    bracketPairColorization: { enabled: true },
+                    folding: true,
+                    foldingStrategy: 'indentation',
+                    showFoldingControls: 'always',
+                    unfoldOnClickAfterEndOfLine: true,
+                    cursorBlinking: 'blink',
+                    cursorSmoothCaretAnimation: 'on'
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
