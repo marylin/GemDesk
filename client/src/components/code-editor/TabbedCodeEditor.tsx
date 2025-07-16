@@ -14,7 +14,8 @@ import {
   Image,
   Music,
   Video,
-  Archive
+  Archive,
+  X
 } from 'lucide-react';
 import type { File as FileType } from '@shared/schema';
 import { cn } from '@/lib/utils';
